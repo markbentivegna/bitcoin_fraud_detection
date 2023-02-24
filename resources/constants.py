@@ -1,0 +1,5 @@
+U_GRAPH_FILENAME = "u_graph.json"
+ADJ_MATRIX_FILENAME = "adj_matrix.txt"
+BITCOIN_DATASET_DIR = f"elliptic_bitcoin_dataset/"
+EDGELIST_FILE = f"elliptic_txs_edgelist.csv"
+FEATURES_FILE = f"elliptic_txs_features.csv"
