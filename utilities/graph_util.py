@@ -29,8 +29,11 @@ class GraphUtility():
     def generate_u_graph(self):
         # local_features_count = 94
         # aggregate_features_count = 72
-        edgelist_df = pd.read_csv(f"{constants.BITCOIN_DATASET_DIR}/{constants.EDGELIST_FILE}")
-        features_df = pd.read_csv(f"{constants.BITCOIN_DATASET_DIR}/{constants.FEATURES_FILE}")
+        edgelist_df = pd.read_csv(f"{constants.WORKING_DIR}/{constants.BITCOIN_DATASET_DIR}/{constants.EDGELIST_FILE}")
+        edgelist_df.rename(columns={
+            "txId1": "transaction_id"
+        }, inplace=True)
+        features_df = pd.read_csv(f"{constants.WORKING_DIR}/{constants.BITCOIN_DATASET_DIR}/{constants.FEATURES_FILE}")
         features_df.rename(columns={
             "1": "timestamp",
             "230425980": "transaction_id"
@@ -39,18 +42,11 @@ class GraphUtility():
         # aggregate_columns = list(features_df.drop(["timestamp", "transaction_id"],axis=1).columns)[-aggregate_features_count:]
         features_df["timestamp_group"] = features_df["timestamp"] // 10 + 1
 
-        u_graph = []
-        for _, row in edgelist_df.iterrows():
-            try:
-                timestamp = list(features_df[features_df["transaction_id"] == int(row[0])]["timestamp"])[0]
-                u_graph.append((int(row[0]), int(row[1]), int(timestamp)))
-            except Exception as e:
-                print(e)
-
+        u_graph = edgelist_df.merge(features_df, on="transaction_id",how="left")[["transaction_id", "txId2", "timestamp"]].dropna().values.tolist()
         self.write_graph_file(u_graph)
         return u_graph
 
     def write_graph_file(self, u_graph):
         u_dict = {"graph": u_graph}
-        with open(self.u_graph_filename, 'w') as f:
+        with open(constants.U_GRAPH_FILENAME, 'w') as f:
             json.dump(u_dict, f)
