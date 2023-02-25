@@ -18,4 +18,3 @@ for edge in edge_list:
 
 end = time.time()
 print(f"took {end - start} seconds to generate adjacency matrix")
-print("foo")
