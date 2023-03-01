@@ -28,8 +28,11 @@ class DatasetUtility:
         }, inplace=True)
 
     def get_edge_list(self):
-        self.edgelist_df.to_csv(constants.EDGE_LIST_FILENAME)
-        return self.edgelist_df.to_numpy()
+        source_df = self.features_df.reset_index()[["index", "transaction_id"]].rename(columns={"index": "source_index","transaction_id": "source"})
+        target_df = self.features_df.reset_index()[["index", "transaction_id"]].rename(columns={"index": "target_index","transaction_id": "target"})
+        edges_df = self.edgelist_df.merge(source_df.drop_duplicates(subset=['source']),how="left").merge(target_df.drop_duplicates(subset=['target']),how="left").dropna().astype(int)[["source_index", "target_index"]]
+        edges_df.to_csv(constants.EDGE_LIST_FILENAME)
+        return edges_df.to_numpy()
     
     def get_transaction_count(self):
         features_df = pd.read_csv(f"{constants.WORKING_DIR}/{constants.BITCOIN_DATASET_DIR}/{constants.FEATURES_FILE}")

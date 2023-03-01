@@ -1,20 +1,12 @@
-from utilities.dataset_util import DatasetUtility
+from utilities.dataset_util import DatasetUtilityPyTorch, DatasetUtility
+from resources import constants
 import numpy as np
-import time
 dataset_util = DatasetUtility()
-u_tuples = dataset_util.get_u_tuples()
 edge_list = dataset_util.get_edge_list()
-N = dataset_util.get_transaction_count()
 
+N = constants.N_NODES
 adj_matrix = np.zeros((N,N))
-start = time.time()
-for edge in edge_list:
-    try:
-        source_index = int(dataset_util.lookup_node_index(edge[0]))
-        destination_index = int(dataset_util.lookup_node_index(edge[1]))
-        adj_matrix[source_index][destination_index] = 1
-    except Exception as e:
-        print(e)
+adj_matrix[edge_list[:,0], edge_list[:,1]] = 1
+pytorch_dataset_util = DatasetUtilityPyTorch()
 
-end = time.time()
-print(f"took {end - start} seconds to generate adjacency matrix")
+dataset = pytorch_dataset_util.build_dataset()
