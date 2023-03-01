@@ -1,0 +1,3 @@
+elliptic_bitcoin_dataset/
+__pycache__/
+*.pt
