@@ -29,11 +29,11 @@ class GraphUtility():
     def generate_u_graph(self):
         # local_features_count = 94
         # aggregate_features_count = 72
-        edgelist_df = pd.read_csv(f"{constants.WORKING_DIR}/{constants.BITCOIN_DATASET_DIR}/{constants.EDGELIST_FILE}")
+        edgelist_df = pd.read_csv(f"{constants.BITCOIN_DATASET_DIR}/{constants.EDGELIST_FILE}")
         edgelist_df.rename(columns={
             "txId1": "transaction_id"
         }, inplace=True)
-        features_df = pd.read_csv(f"{constants.WORKING_DIR}/{constants.BITCOIN_DATASET_DIR}/{constants.FEATURES_FILE}")
+        features_df = pd.read_csv(f"{constants.BITCOIN_DATASET_DIR}/{constants.FEATURES_FILE}")
         features_df.rename(columns={
             "1": "timestamp",
             "230425980": "transaction_id"
