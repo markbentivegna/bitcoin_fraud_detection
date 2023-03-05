@@ -2,6 +2,7 @@ import json
 import os 
 from types import SimpleNamespace
 
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 import torch 
@@ -10,6 +11,7 @@ from torch.optim import Adam
 from models.inspection_l_models import InspectionL
 from utilities.dataset_util import DatasetUtilityPyTorch
 
+# Don't hog too many resources
 torch.set_num_threads(16)
 
 # Same as paper
@@ -18,8 +20,8 @@ HYPERPARAMS = SimpleNamespace(
     estimators=100
 )
 
-def get_or_build_data(out_f='resources/graphs.pt'):
-    if not os.path.exists(out_f):
+def get_or_build_data(out_f='resources/graphs.pt', force=False):
+    if not os.path.exists(out_f) or force:
         util = DatasetUtilityPyTorch()
         data = util.build_dataset()
         graphs = util.split_subgraphs(data)
@@ -115,20 +117,18 @@ def evaluate(hp, model, tr, graphs):
 
 
 def main():
-    '''
-    # Precalculated
+    # Train embedder
     data = get_or_build_data()
     model = InspectionL(data[0].x.size(1), HYPERPARAMS.hidden)
     batch = list(range(35))
     train_embedder(HYPERPARAMS, model, batch, data)
-    '''
 
-    args,kwargs,weights = torch.load('saved_models/inspection_l.pt')
-    model = InspectionL(*args, **kwargs)
-    model.load_state_dict(weights)
+    # Train supervised RF
+    #args,kwargs,weights = torch.load('saved_models/inspection_l.pt')
+    #model = InspectionL(*args, **kwargs)
+    #model.load_state_dict(weights)
 
-    evaluate(HYPERPARAMS, model, list(range(35)), get_or_build_data())
-
+    stats = evaluate(HYPERPARAMS, model, list(range(35)), get_or_build_data())
     '''
     Output: 
 
@@ -145,5 +145,12 @@ def main():
     Which roughly tracks with what the paper claims
     '''
 
+    return stats
+
 if __name__ == '__main__':
-    main()
+    tests = [main() for _ in range(10)]
+    df = pd.DataFrame(tests)
+    with open('results/inspection_l.txt', 'w+') as f:
+        f.write(df.to_csv())
+        f.write(df.mean().to_csv())
+        f.write(df.sem().to_csv())
