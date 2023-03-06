@@ -99,103 +99,124 @@ class DatasetUtility:
         return self.features_df[self.features_df.transaction_id == node_id].index[0]
 
 
-# class DatasetUtilityPyTorch():
-#     DATA = constants.BITCOIN_DATASET_DIR + '/'
-#     def __init__(self):
-#         self.nodemap = dict()
-#         self.nid = 0 
+class DatasetUtilityPyTorch():
+    DATA = constants.BITCOIN_DATASET_DIR + '/'
+    def __init__(self):
+        self.nodemap = dict()
+        self.nid = 0 
 
-#     def _get_or_add(self, node):
-#         if not node in self.nodemap:
-#             self.nodemap[node] = self.nid 
-#             self.nid += 1
+
+    def _get_or_add(self, node):
+        if not node in self.nodemap:
+            self.nodemap[node] = self.nid 
+            self.nid += 1
         
-#         return self.nodemap[node]
+        return self.nodemap[node]
 
-#     def build_edge_list(self):
-#         f = open(self.DATA + constants.EDGELIST_FILE, 'r')
-#         f.readline() # Skip header
 
-#         srcs,dsts = [],[]
-#         prog = tqdm(desc='Building edge list', total=constants.N_EDGES)
-#         line = f.readline()
-#         while(line):
-#             src,dst = line.strip().split(',')
+    def build_edge_list(self):
+        f = open(self.DATA + constants.EDGELIST_FILE, 'r')
+        f.readline() # Skip header
 
-#             # Convert to sequential IDs
-#             src = self._get_or_add(src) 
-#             dst = self._get_or_add(dst) 
+        srcs,dsts = [],[]
+        prog = tqdm(desc='Building edge list', total=constants.N_EDGES)
+        line = f.readline()
+        while(line):
+            src,dst = line.strip().split(',')
 
-#             srcs.append(src) 
-#             dsts.append(dst)
+             # Convert to sequential IDs
+            src = self._get_or_add(src) 
+            dst = self._get_or_add(dst) 
+
+            srcs.append(src) 
+            dsts.append(dst)
             
-#             prog.update()
-#             line = f.readline()
+            prog.update()
+            line = f.readline()
 
-#         f.close()
-#         prog.close()
-#         return torch.tensor([srcs,dsts])
+        f.close()
+        prog.close()
+        return torch.tensor([srcs,dsts])
     
-#     def build_features(self):
-#         f = open(self.DATA + constants.FEATURES_FILE, 'r')
-#         x = torch.zeros(constants.N_NODES, constants.FEAT_DIM)
 
-#         prog = tqdm(desc='Building features', total=constants.N_NODES)
-#         line = f.readline()
-#         while(line):
-#             tokens = line.strip().split(',')
-#             node, feats = tokens[0], tokens[1:]
-#             feats = torch.tensor([float(f) for f in feats])
+    def build_features(self):
+        f = open(self.DATA + constants.FEATURES_FILE, 'r')
+        x = torch.zeros(constants.N_NODES, constants.FEAT_DIM)
 
-#             # This *shouldn't* throw a key error assuming
-#             # build_edge_list was called first
-#             nid = self.nodemap[node]
-#             x[nid] = feats 
+        prog = tqdm(desc='Building features', total=constants.N_NODES)
+        line = f.readline()
+        while(line):
+            tokens = line.strip().split(',')
+            node, feats = tokens[0], tokens[1:]
+            feats = torch.tensor([float(f) for f in feats])
 
-#             prog.update()
-#             line = f.readline()
+            # This *shouldn't* throw a key error assuming
+            # build_edge_list was called first
+            nid = self.nodemap[node]
+            x[nid] = feats 
 
-#         f.close() 
-#         prog.close()
-#         return x 
+            prog.update()
+            line = f.readline()
+
+        f.close() 
+        prog.close()
+        return x 
     
-#     def build_labels(self):
-#         f = open(self.DATA + constants.CLASSES_FILE, 'r') 
-#         f.readline() # Skip headers 
-#         ys = torch.zeros(constants.N_NODES)
 
-#         prog = tqdm(desc='Building ground truth', total=constants.N_NODES)
-#         line = f.readline()
+    def build_labels(self):
+        f = open(self.DATA + constants.CLASSES_FILE, 'r') 
+        f.readline() # Skip headers 
+        ys = torch.zeros(constants.N_NODES)
 
-#         # Tiny bit faster than if statements
-#         ymap = {'unknown':0, '1':1, '2':2}
+        prog = tqdm(desc='Building ground truth', total=constants.N_NODES)
+        line = f.readline()
 
-#         while(line):
-#             node,y = line.strip().split(',')
-#             ys[self.nodemap[node]] = ymap[y]
+        # Tiny bit faster than if statements
+        ymap = {'unknown':0, '1':1, '2':2}
 
-#             prog.update()
-#             line = f.readline()
+        while(line):
+            node,y = line.strip().split(',')
+            ys[self.nodemap[node]] = ymap[y]
 
-#         f.close()
-#         prog.close()
-#         return ys 
+            prog.update()
+            line = f.readline()
+
+        f.close()
+        prog.close()
+        return ys 
     
-#     def build_dataset(self):
-#         ei = self.build_edge_list()
+    def build_dataset(self):
+        ei = self.build_edge_list()
         
-#         # These two can be run in parallel but build_labels takes
-#         # <1s so it's not really worth it
-#         x = self.build_features()
-#         y = self.build_labels()
-
-#         # unlabeled_indices = (y == 0).nonzero(as_tuple=True)[0].numpy()
-#         # numpy_array = np.append(x.numpy(), y.numpy().reshape((203769, 1)), axis=1)
-#         # numpy_labeled = np.delete(numpy_array, unlabeled_indices, 0).shape
-
+        # These two can be run in parallel but build_labels takes
+        # <1s so it's not really worth it
+        x = self.build_features()
+        y = self.build_labels()
         
+        return Data(
+            x=x, edge_index=ei, y=y,
+            num_nodes=x.size(0)
+        )
 
-#         return Data(
-#             x=x, edge_index=ei, y=y,
-#             num_nodes=x.size(0)
-#         )
+
+    def split_subgraphs(self, data):
+        '''
+        Time stamps associated with nodes in each edge
+        supposed to be fully connected components accross each 
+        timestamp. Want to pull out individual subgraphs spanning
+        specific timestamps
+        '''
+        times = data.x[data.edge_index[0]][:,0]
+        spans = times.unique()
+
+        graphs = []
+        for span in spans:
+            ei = data.edge_index[:, times==span]
+            nodes, reindex = ei.unique(return_inverse=True)
+
+            # Don't bother including timestamp. It's superfluous
+            x = data.x[nodes][:,1:]
+            y = data.y[nodes]
+            graphs.append(Data(x=x, y=y, edge_index=reindex, ts=span.item()))
+
+        return graphs 
