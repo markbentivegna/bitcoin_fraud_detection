@@ -1,6 +1,7 @@
 import torch 
 from torch import nn 
-from torch_geometric.nn import GINConv, GCNConv
+from torch_geometric.nn import GINConv, GCNConv, GATConv
+
 
 class GINAggr(nn.Module):
     '''
@@ -29,25 +30,32 @@ class InspectionL(nn.Module):
     '''
     Two-layer GIN with above GINAggr function
     '''
-    def __init__(self, in_dim, hidden, out=None):
+    def __init__(self, in_dim, hidden, out=None, gnn='GIN'):
         super().__init__()
 
         self.args = (in_dim, hidden)
-        self.kwargs = dict(out=out)
+        self.kwargs = dict(out=out, gnn=gnn)
 
-        out = hidden if out is None else out
+        self.out_dim = hidden if out is None else out
         self.corrupt = Corrupt()
         self.bce = nn.BCELoss()
 
-        self.conv1 = GINConv(GINAggr(in_dim, hidden=hidden))
-        self.conv2 = GINConv(GINAggr(hidden, hidden=hidden, out=out))
+        if gnn == 'GIN':
+            self.conv1 = GINConv(GINAggr(in_dim, hidden=hidden))
+            self.conv2 = GINConv(GINAggr(hidden, hidden=hidden, out=self.out_dim))
+        elif gnn == 'GCN':
+            self.conv1 = GCNConv(in_dim, hidden)
+            self.conv2 = GCNConv(hidden, self.out_dim)
+        elif gnn == 'GAT':
+            self.conv1 = GATConv(in_dim, hidden//8, heads=8)
+            self.conv2 = GATConv(hidden, self.out_dim, heads=8, concat=False)
 
         # The same as initializing a matrix to multiply with
         # as the discriminator is defined as hws where 
         # h is the embeddings of each node (Bxd) and s is the 
         # mean of all embeddings (1xd) and we want to produce a 
         # Bx1 out so we use hws^T 
-        self.disc = nn.Linear(out, out, bias=False)
+        self.disc = nn.Linear(self.out_dim, self.out_dim, bias=False)
 
     def embed(self, x, ei):
         x = self.conv1(x, ei)
@@ -72,6 +80,7 @@ class InspectionL(nn.Module):
         s = self.readout(x_real)
         real_loss = self.discriminate(x_real, s)
         perturb_loss = self.discriminate(x_perturb, s)
+
         targets = torch.zeros(real_loss.size(0)+perturb_loss.size(0), 1)
         targets[:real_loss.size(0)] = 1.
 
