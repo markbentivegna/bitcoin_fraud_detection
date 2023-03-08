@@ -161,6 +161,76 @@ def evaluate(hp, model, tr, graphs):
     print(json.dumps(stats, indent=1))
     return stats 
 
+@torch.no_grad()
+def get_false_negatives(hp=HYPERPARAMS):
+    args,kwargs,weights = torch.load('saved_models/inspection_l_GIN.pt')
+    model = InspectionL(*args, **kwargs)
+    model.load_state_dict(weights)
+    graphs = get_or_build_data()
+    
+    rf = RandomForestClassifier(n_estimators=hp.estimators)
+    tr_X, te_X = [],[]
+    tr_y, te_y = [],[]
+    
+    te_nodes = []
+    te_ts = []
+    model.eval()
+    tr = range(35)
+    for g in graphs:
+        x = model.embed(g.x, g.edge_index)
+
+        # Append model embeddings to original features
+        x = torch.cat([x,g.x], dim=1)
+        
+        # Remove unknown labels
+        nodes_used = g.y != 0
+        x = x[nodes_used]
+        y = g.y[nodes_used]
+        y -= 2 # So illicit == -1, licit ==0
+        y = -y # So licit = 0 illicit = 1
+
+        if g.ts in tr:
+            tr_X.append(x)
+            tr_y.append(y)
+        else:
+            te_X.append(x)
+            te_y.append(y)
+
+            # For checking out FPs
+            te_nodes.append(g.nid_to_node_name[nodes_used])
+            te_ts += [g.ts] * nodes_used.sum()
+
+    # Concat list of matrices together
+    tr_X = torch.cat(tr_X,dim=0)
+    tr_y = torch.cat(tr_y,dim=0)
+    te_X = torch.cat(te_X,dim=0)
+    te_y = torch.cat(te_y,dim=0)
+    te_nodes = torch.cat(te_nodes, dim=0)
+
+    print("Fitting RF")
+    rf.fit(tr_X, tr_y)
+
+    y_hat = torch.tensor(rf.predict(te_X))
+
+    fns = (y_hat == 0).logical_and(te_y == 1)
+    fn_feats = te_X[fns]
+    fn_names = te_nodes[fns]
+    fn_times = torch.tensor(te_ts)[fns]
+
+    with open('results/false_negatives.csv', 'w') as f:
+        # Header
+        f.write('node,ts')
+        [f.write(f",f{i}") for i in range(fn_feats.size(1))]
+        f.write('\n')
+
+        for i in range(fn_feats.size(0)):
+            f.write(f"{fn_names[i]},{fn_times[i]}")
+            
+            for feat in fn_feats[i]:
+                f.write(f",{feat.item()}")
+            f.write('\n')
+
+    return fn_feats, fn_names 
 
 def main(gnn):
     # Train embedder
@@ -199,6 +269,9 @@ def main(gnn):
     return stats
 
 if __name__ == '__main__':
+    get_false_negatives()
+
+    '''
     for gnn in ['GIN', 'GCN', 'GAT']:
         tests = [main(gnn) for _ in range(10)]
         df = pd.DataFrame(tests)
@@ -207,3 +280,4 @@ if __name__ == '__main__':
             f.write(df.to_csv())
             f.write(df.mean().to_csv())
             f.write(df.sem().to_csv())
+    '''
