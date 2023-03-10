@@ -1,6 +1,7 @@
 from copy import deepcopy
 from types import SimpleNamespace
 
+import pandas as pd
 import torch 
 from torch.optim import Adam 
 
@@ -26,15 +27,15 @@ def get_labels(y):
 def train_embedder(hp, model, batch, graphs): 
     opt = Adam(params=model.parameters(), lr=hp.lr)
 
-    for e in range(hp.epochs):
-        for i,graph_id in enumerate(batch):
-            g = graphs[graph_id]
+    for i,graph_id in enumerate(batch):
+        g = graphs[graph_id]
 
-            # Subtract 1 so first graph has id 0
-            ts_target = torch.tensor([(g.ts-1) // hp.graphs_per_snapshot])
-            ts_target = ts_target.repeat(g.x.size(0)).long()
-            labels, mask = get_labels(g.y)
-
+        # Subtract 1 so first graph has id 0
+        ts_target = torch.tensor([(g.ts-1) // hp.graphs_per_snapshot])
+        ts_target = ts_target.repeat(g.x.size(0)).long()
+        labels, mask = get_labels(g.y)
+        
+        for e in range(hp.epochs):
             model.train()
             opt.zero_grad()
             y_loss, ts_loss = model(g.x, g.edge_index, ts_target, labels, mask)
@@ -43,7 +44,7 @@ def train_embedder(hp, model, batch, graphs):
 
         print(
             "[%d] Classifier loss: %0.3f; TS loss: %0.3f" %
-            (e, y_loss.item(), ts_loss.item())
+            (i, y_loss.item(), ts_loss.item())
         )
 
         if e % 10 == 0:
