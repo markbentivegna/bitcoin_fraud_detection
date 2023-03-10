@@ -104,11 +104,13 @@ class DatasetUtilityPyTorch():
     def __init__(self):
         self.nodemap = dict()
         self.nid = 0 
+        self.nid_to_node_name = []
 
 
     def _get_or_add(self, node):
         if not node in self.nodemap:
             self.nodemap[node] = self.nid 
+            self.nid_to_node_name.append(int(node))
             self.nid += 1
         
         return self.nodemap[node]
@@ -136,6 +138,9 @@ class DatasetUtilityPyTorch():
 
         f.close()
         prog.close()
+
+        # All nodes now added. Finalize by making it a tensor
+        self.nid_to_node_name = torch.tensor(self.nid_to_node_name)
         return torch.tensor([srcs,dsts])
     
 
@@ -217,6 +222,9 @@ class DatasetUtilityPyTorch():
             # Don't bother including timestamp. It's superfluous
             x = data.x[nodes][:,1:]
             y = data.y[nodes]
-            graphs.append(Data(x=x, y=y, edge_index=reindex, ts=span.item()))
+            graphs.append(Data(
+                x=x, y=y, edge_index=reindex, 
+                ts=span.item(), nid_to_node_name=self.nid_to_node_name[nodes]
+            ))
 
         return graphs 
