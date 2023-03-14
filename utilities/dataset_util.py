@@ -33,12 +33,13 @@ class DatasetUtility:
             "txId": "transaction_id"
         }, inplace=True)
 
-    def get_dataset(self):
-        dataset_df = self._init_dataset_df()
-        if self._file_exists(f"{constants.EDGES_LABELED_FILENAME}"):
-            edges_df = self.get_edges_csv(labeled=True)
+    def get_dataset(self, filter_labeled=True):
+        dataset_df = self._init_dataset_df(filter_labeled=filter_labeled)
+        filename = constants.EDGES_LABELED_FILENAME if filter_labeled else constants.EDGES_INDEXED_FILENAME
+        if self._file_exists(filename):
+            edges_df = self.get_edges_csv(labeled=filter_labeled)
         else:
-            edges_df = self.get_edge_list(generate_csv=True, is_labeled=True)
+            edges_df = self.get_edge_list(generate_csv=True, is_labeled=filter_labeled)
         train_mask_tensor, val_mask_tensor, test_mask_tensor = self._get_mask_tensors(dataset_df)
         edges_tensor = self._to_tensor(edges_df.to_numpy())
         x_tensor = self._to_tensor(dataset_df.drop("class",axis=1).to_numpy())
@@ -50,10 +51,13 @@ class DatasetUtility:
             val_mask=val_mask_tensor, test_mask=test_mask_tensor
         )
 
-    def _init_dataset_df(self):
-        dataset_df = self.features_df.merge(self.labels_df[self.labels_df["class"] != "unknown"],how="left").dropna()
-        dataset_df["class"] = pd.to_numeric(dataset_df["class"])
-        dataset_df["class"] -= 1
+    def _init_dataset_df(self, filter_labeled=True):
+        dataset_df = self.features_df.merge(self.labels_df,how="left").dropna()
+        if filter_labeled:
+            dataset_df = self.features_df.merge(self.labels_df[self.labels_df["class"] != "unknown"],how="left").dropna()
+        dataset_df["class"] = pd.to_numeric(dataset_df["class"].str.replace("unknown", "0"))
+        dataset_df["class"] -= 2
+        dataset_df["class"] = dataset_df["class"].abs()
         return dataset_df
 
     def _get_mask_tensors(self,dataset_df):
@@ -76,10 +80,9 @@ class DatasetUtility:
 
     def get_edge_list(self, generate_csv=False, is_labeled=False):
         features_df = self.features_df
-        filename = constants.EDGES_INDEXED_FILENAME
+        filename = constants.EDGES_LABELED_FILENAME if is_labeled else constants.EDGES_INDEXED_FILENAME
         if is_labeled:
             features_df = self.features_df.merge(self.labels_df[self.labels_df["class"] != "unknown"],how="left").dropna().reset_index().drop("index",axis=1)
-            filename = constants.EDGES_LABELED_FILENAME
         edges_df = self._get_edges_indexed(features_df)
         if generate_csv:
             edges_df.to_csv(f"{filename}",index=False)
@@ -97,6 +100,25 @@ class DatasetUtility:
     
     def lookup_node_index(self, node_id):
         return self.features_df[self.features_df.transaction_id == node_id].index[0]
+    
+    def split_subgraphs(self, data):
+        timestamps = data.x[data.edge_index.T[0].type(torch.LongTensor)][:,1]
+        spans = data.x[:,1].unique()
+
+        graphs = []
+        for span in spans:
+            selected_edge_indexes = data.edge_index[timestamps==span,:]
+            nodes, edge_indexes = selected_edge_indexes.unique(return_inverse=True)
+            nodes = nodes.type(torch.LongTensor)
+
+            x = torch.cat([data.x[:, 2:]], dim=1)[nodes]
+            y = data.y[nodes]
+            graphs.append(Data(
+                x=x, y=y, edge_index=edge_indexes.T, 
+                time_stamp=span.item()
+            ))
+
+        return graphs 
 
 
 class DatasetUtilityPyTorch():
