@@ -50,3 +50,43 @@ class GraphUtility():
         u_dict = {"graph": u_graph}
         with open(constants.U_GRAPH_FILENAME, 'w') as f:
             json.dump(u_dict, f)
+
+
+def find_ccs(g='resources/augmented.pt'):
+    '''
+    I know there's a faster way to do this, I took Algorithms 101
+    but I don't feel like building a whole disjoint-set class to do it
+
+    Instead, just keep doing BFS and finding ccs until no nodes 
+    haven't been found
+    '''
+    all_nodes = set(range(g.x.size(0)))
+    ccs = []
+
+    def bfs(nid):
+        domain = set([nid])
+        explored = set()
+        
+        while(domain):
+            n = domain.pop()
+            explored.add(n)
+
+            neighbors = g.edge_index[1, g.edge_index[0]==n]
+            [
+                domain.add(neigh.item()) 
+                for neigh in neighbors 
+                if neigh.item() not in explored
+            ]
+
+        return explored 
+    
+    while all_nodes:
+        cc = bfs(all_nodes.pop())
+        all_nodes -= cc 
+        ccs.append(cc)
+        print(
+            '\rFinding cc for %d nodes'.ljust(20) 
+            % (len(all_nodes)), end=''
+        )
+
+    return ccs 

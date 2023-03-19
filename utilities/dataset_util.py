@@ -100,11 +100,14 @@ class DatasetUtility:
 
 
 class DatasetUtilityPyTorch():
-    DATA = constants.BITCOIN_DATASET_DIR + '/'
-    def __init__(self):
+    def __init__(self, dataset=constants.BITCOIN_DATASET_DIR):
+        self.DATA = dataset + '/'
         self.nodemap = dict()
         self.nid = 0 
         self.nid_to_node_name = []
+
+        self.N_EDGES = constants.N_EDGES if dataset==constants.BITCOIN_DATASET_DIR \
+            else constants.N_AUGMENTED_EDGES
 
 
     def _get_or_add(self, node):
@@ -121,10 +124,20 @@ class DatasetUtilityPyTorch():
         f.readline() # Skip header
 
         srcs,dsts = [],[]
-        prog = tqdm(desc='Building edge list', total=constants.N_EDGES)
+        prog = tqdm(desc='Building edge list', total=self.N_EDGES)
         line = f.readline()
         while(line):
             src,dst = line.strip().split(',')
+
+            # I think any new transaction from the augmented data
+            # involves completely new nodes for both src and dst
+            # E.g. the first transaction with a negative is listed as 
+            # -28784671,152039820
+            # but there is no record of 152039820. There is, however
+            # a record associated with node -152039820 so I think that is
+            # the (poorly documented) implication
+            if src.startswith('-'):
+                dst = '-'+dst
 
              # Convert to sequential IDs
             src = self._get_or_add(src) 
@@ -146,9 +159,9 @@ class DatasetUtilityPyTorch():
 
     def build_features(self):
         f = open(self.DATA + constants.FEATURES_FILE, 'r')
-        x = torch.zeros(constants.N_NODES, constants.FEAT_DIM)
+        x = torch.zeros(len(self.nodemap), constants.FEAT_DIM)
 
-        prog = tqdm(desc='Building features', total=constants.N_NODES)
+        prog = tqdm(desc='Building features', total=len(self.nodemap))
         line = f.readline()
         while(line):
             tokens = line.strip().split(',')
@@ -157,7 +170,8 @@ class DatasetUtilityPyTorch():
 
             # This *shouldn't* throw a key error assuming
             # build_edge_list was called first
-            nid = self.nodemap[node]
+            if (nid := self.nodemap.get(node)) is None:
+                print("Skipping feature for node %s that doesn't appear in edgelist" % node)
             x[nid] = feats 
 
             prog.update()
@@ -171,13 +185,13 @@ class DatasetUtilityPyTorch():
     def build_labels(self):
         f = open(self.DATA + constants.CLASSES_FILE, 'r') 
         f.readline() # Skip headers 
-        ys = torch.zeros(constants.N_NODES)
+        ys = torch.zeros(len(self.nodemap))
 
-        prog = tqdm(desc='Building ground truth', total=constants.N_NODES)
+        prog = tqdm(desc='Building ground truth', total=len(self.nodemap))
         line = f.readline()
 
         # Tiny bit faster than if statements
-        ymap = {'unknown':0, '1':1, '2':2}
+        ymap = {'unknown':0, '1':1, '2':2, 'suspicious': 3}
 
         while(line):
             node,y = line.strip().split(',')

@@ -1,4 +1,5 @@
 elliptic_bitcoin_dataset/
+augmented_dataset/
 __pycache__/
 *.pt
 saved_models/
