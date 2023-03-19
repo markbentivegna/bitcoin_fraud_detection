@@ -1,6 +1,7 @@
 U_GRAPH_FILENAME = "u_graph.json"
 EDGES_INDEXED_FILENAME = "edges.csv"
 EDGES_LABELED_FILENAME = "edges_labeled.csv"
+EDGES_UNLABELED_FILENAME = "edges_unlabeled.csv"
 BITCOIN_DATASET_DIR = f"elliptic_bitcoin_dataset"
 AUGMENTED_BITCOIN_DATASET_DIR = "augmented_dataset"
 
