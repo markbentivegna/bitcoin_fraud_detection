@@ -115,7 +115,7 @@ class DatasetUtility:
             y = data.y[nodes]
             graphs.append(Data(
                 x=x, y=y, edge_index=edge_indexes.T, 
-                time_stamp=span.item()
+                timestamp=span.item()
             ))
 
         return graphs 

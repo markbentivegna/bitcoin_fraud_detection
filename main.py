@@ -1,134 +1,108 @@
-from utilities.dataset_util import DatasetUtility, DatasetUtilityPyTorch
-from resources import constants
-import numpy as np
+from utilities.dataset_util import DatasetUtility
+from models.InspectionL import InspectionL
+from models.AdaGNN import AdaGNN
 from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
 from torch.optim import Adam 
 import torch
-import torch.nn as nn
-from torch_geometric.nn import GINConv, GCNConv, GATConv
-import torch.nn.functional as F
-import time
+import os
+import json
 
-start_time = time.time()
-dataset_util = DatasetUtility()
-dataset = dataset_util.get_dataset(filter_labeled=True)
-subgraphs = dataset_util.split_subgraphs(dataset)
-end_time = time.time()
-print(f"Took {end_time-start_time} to compute subgraphs")
+TRAIN_GRAPH_SIZE = 35
+MODEL = "InspectionL"
 
-class GINAggrNet(nn.Module):
-    def __init__(self, input_dimension, hidden_layers=128, output_dimension=128):
-        super().__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(input_dimension, hidden_layers),
-            nn.BatchNorm1d(hidden_layers),
-            nn.ReLU(),
-            nn.Linear(hidden_layers, output_dimension),
-            nn.ReLU()
-        )
+def load_dataset():
+    dataset_util = DatasetUtility()
+    full_dataset = dataset_util.get_dataset(filter_labeled=False)
+    return dataset_util.split_subgraphs(full_dataset)
 
-    def forward(self, x):
-        return self.mlp(x)
+def save_model(filename, model, optimizer, epoch):
+    torch.save({
+        "epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict()
+    }, filename)
+def load_model(filename):
+    return torch.load(f"saved_models/{filename}")
 
-class InspectionL(nn.Module):
-    def __init__(self, input_dimension, hidden_layers, output_dimension, gnn):
-        super().__init__()
-        self.output_dimension = output_dimension
-        
-        if gnn == 'GIN':
-            self.conv_layer1 = GINConv(GINAggrNet(input_dimension, hidden_layers=hidden_layers))
-            self.conv_layer2 = GINConv(GINAggrNet(hidden_layers, hidden_layers=hidden_layers, output_dimension=output_dimension))
-        elif gnn == 'GCN':
-            self.conv_layer1 = GCNConv(input_dimension, hidden_layers)
-            self.conv_layer2 = GCNConv(hidden_layers, output_dimension)
-        elif gnn == 'GAT':
-            self.conv_layer1 = GATConv(input_dimension, hidden_layers//8, heads=8)
-            self.conv_layer2 = GATConv(hidden_layers, output_dimension, heads=8, concat=False)
+def checkpoint_exists(checkpoint_filename):
+    return os.path.isfile(f"saved_models/{checkpoint_filename}") 
 
-        self.bce = nn.BCELoss()
-        self.discriminator = nn.Linear(output_dimension, output_dimension, bias=False)
+def train_embedder(full_subgraphs, model, gnn, epochs=300):
+    checkpoint_filename = f"{MODEL}_{gnn}_{epochs}.pt"
+    optimizer = Adam(params=model.parameters(), lr=0.0001)
+    initial_epoch = 0
+    if checkpoint_exists(checkpoint_filename):
+        checkpoint = load_model(checkpoint_filename)
+        initial_epoch = checkpoint["epoch"] + 1
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-    def embed(self, x, edge_index):
-        x = self.conv_layer1(x, edge_index)
-        x = self.conv_layer2(x, edge_index)
-        return x
-    
-    def readout(self, x):
-        return torch.sigmoid(
-            torch.mean(x, dim=0, keepdim=True)
-        )
-    
-    def discriminate(self, x, s):
-        return torch.sigmoid(
-            self.discriminator(x) @ s.T
-        )
-    
-    def corrupt(self, x):
-        perm = torch.randperm(x.size(0))
-        return x[perm]
-    
-    def forward(self, x, ei):
-        x_real = self.embed(x,ei)
-        x_corrupted = self.embed(self.corrupt(x), ei)
+    for graph_id in range(TRAIN_GRAPH_SIZE):
+        graph = full_subgraphs[graph_id]
+        # timestamp_target = torch.tensor([(graph.timestamp-1) // 10])
+        # timestamp_target = timestamp_target.repeat(graph.x.size(0)).long()
+        # labels, timestamp_mask = graph.y, graph.y != 2
+        for epoch in range(initial_epoch, epochs):
+            model.train()
+            optimizer.zero_grad()
+            if MODEL == "AdaGNN":
+                loss = model(graph.x, graph.edge_index, timestamp_target, labels, timestamp_mask)
+            else:
+                loss = model(graph.x, graph.edge_index)
+            loss.backward()
+            optimizer.step()
 
-        s = self.readout(x_real)
-        real_loss = self.discriminate(x_real, s)
-        corrupted_loss = self.discriminate(x_corrupted, s)
+            if epoch % 10 == 0 or epoch + 1 == epochs:
+                print(f"[{graph_id}-{epoch}] Loss {loss.item()}")
+                save_model(checkpoint_filename, model, optimizer, epoch)
 
-        targets = torch.zeros(real_loss.size(0)+corrupted_loss.size(0), 1)
-        targets[:real_loss.size(0)] = 1.
+def classifier_predictions(x_train, y_train, x_test, classifier):
+    classifier.fit(x_train.detach().numpy(), y_train.detach().numpy())
+    y_hat = classifier.predict(x_test.detach().numpy())
+    predictions = classifier.predict_proba(x_test.detach().numpy())[:,1]
+    return y_hat, predictions
 
-        loss = self.bce(torch.cat([real_loss, corrupted_loss]), targets)
-        return loss
+def evaluate_performance(y_test, y_hat, predictions):
+    return {
+        "precision": precision_score(y_test, y_hat),
+        "recall": recall_score(y_test, y_hat),
+        "f1": f1_score(y_test, y_hat),
+        "roc_auc": roc_auc_score(y_test, predictions),
+        # "confusion_matrix": confusion_matrix(y_test, y_hat)
+    }
 
-    
-model = InspectionL(subgraphs[0].x.size(1), 128, 128, gnn="GIN")
+def load_classifier_datasets(full_subgraphs, model):
+    train_graphs, test_graphs = train_test_split(full_subgraphs, train_size = 0.7, shuffle=False)
+    x_train, y_train, x_test, y_test = [], [], [], []
+    model.eval()
+    for graph in train_graphs:
+        x_train.append(torch.cat([model.embed(graph.x, graph.edge_index), graph.x],dim=1)[graph.y != 2])
+        y_train.append(graph.y[graph.y != 2])
+    for graph in test_graphs:
+        x_test.append(torch.cat([model.embed(graph.x, graph.edge_index), graph.x],dim=1)[graph.y != 2])
+        y_test.append(graph.y[graph.y != 2])
+    x_train = torch.cat(x_train,dim=0)
+    y_train = torch.cat(y_train,dim=0)
+    x_test = torch.cat(x_test,dim=0)
+    y_test = torch.cat(y_test,dim=0)
+    return x_train, y_train, x_test, y_test
+ 
+for gnn in ["GAT", "GIN", "GCN"]:
+    full_subgraphs = load_dataset()
+    if MODEL == "AdaGNN":
+        model = AdaGNN(full_subgraphs[0].x.size(1), 128, 128, gnn=gnn)
+    else:
+        model = InspectionL(full_subgraphs[0].x.size(1), 128, 128, gnn=gnn)
+    train_embedder(full_subgraphs, model, gnn, epochs=10)
 
-optimizer = Adam(params=model.parameters(), lr=0.0001)
+    x_train, y_train, x_test, y_test = load_classifier_datasets(full_subgraphs, model)
 
-for graph_id in range(35):
-    graph = subgraphs[graph_id]
-        
-    for epoch in range(300):
-        model.train()
-        optimizer.zero_grad()
-        loss = model(graph.x, graph.edge_index)
-        loss.backward()
-        optimizer.step()
-
-        if epoch % 10 == 0:
-            print(f"[{graph_id}-{epoch}] Loss {loss.item()}")
-
-train_graphs, test_graphs = train_test_split(subgraphs, train_size = 0.7, shuffle=False)
-
-random_forest = RandomForestClassifier(n_estimators=100)
-x_train, y_train, x_test, y_test = [], [], [], []
-for graph in train_graphs:
-    x_train.append(model.embed(graph.x, graph.edge_index))
-    y_train.append(graph.y)
-for graph in test_graphs:
-    x_test.append(model.embed(graph.x, graph.edge_index))
-    y_test.append(graph.y)
-
-x_train = torch.cat(x_train,dim=0)
-y_train = torch.cat(y_train,dim=0)
-x_test = torch.cat(x_test,dim=0)
-y_test = torch.cat(y_test,dim=0)
-
-model.eval()
-
-random_forest.fit(x_train.detach().numpy(), y_train.detach().numpy())
-
-y_hat = random_forest.predict(x_test.detach().numpy())
-predictions = random_forest.predict_proba(x_test.detach().numpy())[:,1]
-precision = precision_score(y_test, y_hat)
-recall = recall_score(y_test, y_hat)
-f1 = f1_score(y_test, y_hat)
-roc_auc = roc_auc_score(y_test, predictions)
-print(f"precision: {precision}")
-print(f"recall: {recall}")
-print(f"f1: {f1}")
-print(f"roc_auc: {roc_auc}")
-print(confusion_matrix(y_test, y_hat))
+    y_hat, predictions = classifier_predictions(x_train, y_train, x_test, xgb.XGBClassifier())
+    xgb_results_dict = evaluate_performance(y_test, y_hat, predictions)
+    print(f"XGBClassifier results: {json.dumps(xgb_results_dict, indent=2)}")
+    y_hat, predictions = classifier_predictions(x_train, y_train, x_test, RandomForestClassifier(n_estimators=100))
+    rf_results_dict = evaluate_performance(y_test, y_hat, predictions)
+    print(f"RandomForest results: {json.dumps(rf_results_dict, indent=2)}")
