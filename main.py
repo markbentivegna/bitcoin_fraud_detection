@@ -9,6 +9,7 @@ from torch.optim import Adam
 import torch
 import os
 import json
+import pandas as pd
 
 TRAIN_GRAPH_SIZE = 35
 MODEL = "InspectionL"
@@ -42,9 +43,9 @@ def train_embedder(full_subgraphs, model, gnn, epochs=300):
 
     for graph_id in range(TRAIN_GRAPH_SIZE):
         graph = full_subgraphs[graph_id]
-        # timestamp_target = torch.tensor([(graph.timestamp-1) // 10])
-        # timestamp_target = timestamp_target.repeat(graph.x.size(0)).long()
-        # labels, timestamp_mask = graph.y, graph.y != 2
+        timestamp_target = torch.tensor([(graph.timestamp-1) // 10])
+        timestamp_target = timestamp_target.repeat(graph.x.size(0)).long()
+        labels, timestamp_mask = graph.y, graph.y != 2
         for epoch in range(initial_epoch, epochs):
             model.train()
             optimizer.zero_grad()
@@ -71,7 +72,7 @@ def evaluate_performance(y_test, y_hat, predictions):
         "recall": recall_score(y_test, y_hat),
         "f1": f1_score(y_test, y_hat),
         "roc_auc": roc_auc_score(y_test, predictions),
-        # "confusion_matrix": confusion_matrix(y_test, y_hat)
+        "confusion_matrix": confusion_matrix(y_test, y_hat)
     }
 
 def load_classifier_datasets(full_subgraphs, model):
@@ -89,20 +90,40 @@ def load_classifier_datasets(full_subgraphs, model):
     x_test = torch.cat(x_test,dim=0)
     y_test = torch.cat(y_test,dim=0)
     return x_train, y_train, x_test, y_test
- 
+
+def record_results(gnn, classifier, hidden_layers, output_layers, performance_dict, results_file="results/results.csv"):
+    results_dict = {
+        "gnn": gnn,
+        "classifier": classifier,
+        "hidden_layers": hidden_layers,
+        "output_dimension": output_layers,
+        "precision": performance_dict["precision"],
+        "recall": performance_dict["recall"],
+        "f1": performance_dict["f1"],
+        "roc_auc": performance_dict["roc_auc"],
+        "confusion_matrix": performance_dict["confusion_matrix"].flatten()
+    }
+    pd.DataFrame(results_dict).to_csv(results_file, mode='a')
+
+
 for gnn in ["GAT", "GIN", "GCN"]:
+    HIDDEN_LAYERS = 128
+    OUTPUT_DIMENSION = 128
     full_subgraphs = load_dataset()
     if MODEL == "AdaGNN":
-        model = AdaGNN(full_subgraphs[0].x.size(1), 128, 128, gnn=gnn)
+        model = AdaGNN(full_subgraphs[0].x.size(1), HIDDEN_LAYERS, OUTPUT_DIMENSION, gnn=gnn)
     else:
-        model = InspectionL(full_subgraphs[0].x.size(1), 128, 128, gnn=gnn)
+        model = InspectionL(full_subgraphs[0].x.size(1), HIDDEN_LAYERS, OUTPUT_DIMENSION, gnn=gnn)
     train_embedder(full_subgraphs, model, gnn, epochs=10)
 
     x_train, y_train, x_test, y_test = load_classifier_datasets(full_subgraphs, model)
 
     y_hat, predictions = classifier_predictions(x_train, y_train, x_test, xgb.XGBClassifier())
     xgb_results_dict = evaluate_performance(y_test, y_hat, predictions)
-    print(f"XGBClassifier results: {json.dumps(xgb_results_dict, indent=2)}")
+    record_results(gnn, "XGBoost", HIDDEN_LAYERS, OUTPUT_DIMENSION, xgb_results_dict)
+    # print(f"XGBClassifier results: {json.dumps(xgb_results_dict, indent=2)}")
     y_hat, predictions = classifier_predictions(x_train, y_train, x_test, RandomForestClassifier(n_estimators=100))
     rf_results_dict = evaluate_performance(y_test, y_hat, predictions)
-    print(f"RandomForest results: {json.dumps(rf_results_dict, indent=2)}")
+    record_results(gnn, "RandomForest", HIDDEN_LAYERS, OUTPUT_DIMENSION, rf_results_dict)
+    # print(f"RandomForest results: {json.dumps(rf_results_dict, indent=2)}")
+    
