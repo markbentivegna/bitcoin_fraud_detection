@@ -24,12 +24,19 @@ def save_model(filename, model, optimizer, epoch):
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict()
-    }, filename)
+    }, f"saved_models/{filename}")
 def load_model(filename):
     return torch.load(f"saved_models/{filename}")
 
 def checkpoint_exists(checkpoint_filename):
     return os.path.isfile(f"saved_models/{checkpoint_filename}") 
+
+def results_file_exists(results_filename):
+    return os.path.isfile(f"{results_filename}") 
+
+def create_results_file(results_dict, reuslts_filename):
+    results_columns = ["gnn","classifier","hidden_layers","output_dimension","precision","recall","f1","roc_auc","true_negative","false_positive","false_negative","true_positive"]
+    pd.DataFrame([results_dict]).to_csv(f"{reuslts_filename}", header=results_columns)
 
 def train_embedder(full_subgraphs, model, gnn, epochs=300):
     checkpoint_filename = f"{MODEL}_{gnn}_{epochs}.pt"
@@ -40,7 +47,8 @@ def train_embedder(full_subgraphs, model, gnn, epochs=300):
         initial_epoch = checkpoint["epoch"] + 1
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
     for graph_id in range(TRAIN_GRAPH_SIZE):
         graph = full_subgraphs[graph_id]
         timestamp_target = torch.tensor([(graph.timestamp-1) // 10])
@@ -101,9 +109,15 @@ def record_results(gnn, classifier, hidden_layers, output_layers, performance_di
         "recall": performance_dict["recall"],
         "f1": performance_dict["f1"],
         "roc_auc": performance_dict["roc_auc"],
-        "confusion_matrix": performance_dict["confusion_matrix"].flatten()
+        "true_negative": int(performance_dict["confusion_matrix"].flatten()[0]),
+        "false_positive": int(performance_dict["confusion_matrix"].flatten()[1]),
+        "false_negative": int(performance_dict["confusion_matrix"].flatten()[2]),
+        "true_positive": int(performance_dict["confusion_matrix"].flatten()[3]),
     }
-    pd.DataFrame(results_dict).to_csv(results_file, mode='a')
+    if not results_file_exists(results_file):
+        create_results_file(results_dict,results_file)
+    else:
+        pd.DataFrame([results_dict]).to_csv(results_file, mode='a', header=False)
 
 
 for gnn in ["GAT", "GIN", "GCN"]:
@@ -114,7 +128,7 @@ for gnn in ["GAT", "GIN", "GCN"]:
         model = AdaGNN(full_subgraphs[0].x.size(1), HIDDEN_LAYERS, OUTPUT_DIMENSION, gnn=gnn)
     else:
         model = InspectionL(full_subgraphs[0].x.size(1), HIDDEN_LAYERS, OUTPUT_DIMENSION, gnn=gnn)
-    train_embedder(full_subgraphs, model, gnn, epochs=10)
+    train_embedder(full_subgraphs, model, gnn)
 
     x_train, y_train, x_test, y_test = load_classifier_datasets(full_subgraphs, model)
 
