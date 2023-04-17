@@ -1,50 +1,41 @@
-import pandas as pd
-import torch
-import os
-import numpy as np
-from torch_geometric.data import Data
-from tqdm import tqdm 
-
 from resources import constants
 from utilities.graph_util import GraphUtility
+from utilities.elliptic_util import EllipticUtility
+from utilities.babd_util import BABDUtility
+from utilities.bhd_util import BHDUtility
+from utilities.creditcard_util import CreditCardUtility
+from utilities.fraud_transaction_util import FraudTransactionUtility
 
 
 class DatasetUtility:
     def __init__(self):
-        self.graph_util = GraphUtility()
-        self._initialize_dataframes()
+        # self.graph_util = GraphUtility()
+        self.elliptic_util = EllipticUtility()
+        self.babd_util = BABDUtility()
+        self.bhd_util = BHDUtility()
+        self.creditcard_util = CreditCardUtility()
+        self.fraud_transaction_util = FraudTransactionUtility()
 
-    def get_u_tuples(self):
-        return self.graph_util.get_u_graph()
+    # def get_u_tuples(self):
+    #     return self.graph_util.get_u_graph()
 
-    def _initialize_dataframes(self):
-        self.edgelist_df = pd.read_csv(f"{constants.BITCOIN_DATASET_DIR}/{constants.EDGELIST_FILE}")
-        self.edgelist_df.rename(columns={
-            "txId1": "source",
-            "txId2": "target"
-        }, inplace=True)
-        self.features_df = pd.read_csv(f"{constants.BITCOIN_DATASET_DIR}/{constants.FEATURES_FILE}")
-        self.features_df.rename(columns={
-            "1": "timestamp",
-            "230425980": "transaction_id"
-        }, inplace=True)
-        self.labels_df = pd.read_csv(f"{constants.BITCOIN_DATASET_DIR}/{constants.CLASSES_FILE}")
-        self.labels_df.rename(columns={
-            "txId": "transaction_id"
-        }, inplace=True)
+    def load_dataset(self, dataset):
+        full_dataset = self.get_dataset(dataset, filter_labeled=False)
+        return self.split_subgraphs(full_dataset, dataset)
 
-    def get_dataset(self, filter_labeled=True):
-        dataset_df = self._init_dataset_df(filter_labeled=filter_labeled)
-        filename = constants.EDGES_LABELED_FILENAME if filter_labeled else constants.EDGES_INDEXED_FILENAME
-        if self._file_exists(filename):
-            edges_df = self.get_edges_csv(labeled=filter_labeled)
-        else:
-            edges_df = self.get_edge_list(generate_csv=True, is_labeled=filter_labeled)
-        train_mask_tensor, val_mask_tensor, test_mask_tensor = self._get_mask_tensors(dataset_df)
-        edges_tensor = self._to_tensor(edges_df.to_numpy())
-        x_tensor = self._to_tensor(dataset_df.drop("class",axis=1).to_numpy())
-        y_tensor = self._to_tensor(dataset_df["class"].to_numpy().astype(int))
+    def get_dataset(self, dataset, filter_labeled=True):
+        if dataset == constants.ELLIPTIC_DATASET:
+            return self.elliptic_util.get_dataset(filter_labeled=filter_labeled)
+        elif dataset == constants.BABD_DATASET:
+            return self.babd_util.get_dataset()
+        elif dataset == constants.BHD_DATASET:
+            return self.bhd_util.get_dataset()
+        elif dataset == constants.CREDITCARD_DATASET:
+            return self.creditcard_util.get_dataset()
+        elif dataset == constants.FRAUD_TRANSACTION_DATASET:
+            return self.fraud_transaction_util.get_dataset()
 
+<<<<<<< HEAD
         return Data(
             x=x_tensor, edge_index=edges_tensor, y=y_tensor,
             num_nodes=x_tensor.size(0), train_mask=train_mask_tensor,
@@ -264,3 +255,16 @@ class DatasetUtilityPyTorch():
             ))
 
         return graphs 
+=======
+    def split_subgraphs(self, data, dataset):
+        if dataset == constants.ELLIPTIC_DATASET:
+            return self.elliptic_util.split_subgraphs(data)
+        elif dataset == constants.BABD_DATASET:
+            return data
+        elif dataset == constants.BHD_DATASET:
+            return data
+        elif dataset == constants.CREDITCARD_DATASET:
+            return data
+        elif dataset == constants.FRAUD_TRANSACTION_DATASET:
+            return data
+>>>>>>> afb100f (feat: Adding additional datasets and naive classifiers)
