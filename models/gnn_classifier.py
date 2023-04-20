@@ -1,19 +1,19 @@
 import torch 
 from torch import nn 
-from torch_geometric.nn import GCNConv, GATConv
+from torch_geometric.nn import GCNConv, GATConv, SAGEConv
 
 class SimpleGNNClassifier(nn.Module):
     '''
     Two-layer GNN to predict licit/illicit
     '''
-    def __init__(self, in_dim, hidden, out=None, gnn='GIN'):
+    def __init__(self, in_dim, hidden, out=None, gnn='GIN', weight=None):
         super().__init__()
 
         self.args = (in_dim, hidden)
         self.kwargs = dict(out=out, gnn=gnn)
 
         self.out_dim = hidden if out is None else out
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn = nn.CrossEntropyLoss(weight=weight)
 
         if gnn == 'GCN':
             self.conv1 = GCNConv(in_dim, hidden)
@@ -21,6 +21,9 @@ class SimpleGNNClassifier(nn.Module):
         elif gnn == 'GAT':
             self.conv1 = GATConv(in_dim, hidden//8, heads=8)
             self.conv2 = GATConv(hidden, self.out_dim, heads=8, concat=False)
+        elif gnn == 'SAGE':
+            self.conv1 = SAGEConv(in_dim, hidden)
+            self.conv2 = SAGEConv(hidden, self.out_dim)
 
         # Two layer just to add some complexity
         self.disc = nn.Sequential(

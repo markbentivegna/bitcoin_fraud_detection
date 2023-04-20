@@ -23,7 +23,7 @@ HYPERPARAMS = SimpleNamespace(
 )
 
 def get_or_build_data(just_local=False, just_global=False, out_f='resources/graphs.pt', force=False):
-    assert not just_global and just_local, 'Graphs have no features when just_local=True and just_global=True'
+    assert not (just_global and just_local), 'Graphs have no features when just_local=True and just_global=True'
     
     if not os.path.exists(out_f) or force:
         util = DatasetUtilityPyTorch()
@@ -268,14 +268,14 @@ def main(gnn, hp):
 
 if __name__ == '__main__':
     gnn = 'GIN'
-    for kw in [{'just_local': True}, {'just_global': True}]:
-        hp = deepcopy(HYPERPARAMS)
-        hp.data_kwargs = kw 
 
-        tests = [main(gnn, hp) for _ in range(10)]
-        df = pd.DataFrame(tests)
-        with open('results/inspection_l.txt', 'a') as f:
-            f.write(f"{gnn}, {list(kw.keys())[0]}\n")
-            f.write(df.to_csv())
-            f.write(df.mean().to_csv())
-            f.write(df.sem().to_csv())
+    hp = deepcopy(HYPERPARAMS)
+    hp.data_kwargs = {'out_f': 'resources/graphs-tgbase.pt'}
+
+    tests = [main(gnn, hp) for _ in range(10)]
+    df = pd.DataFrame(tests)
+    with open('results/inspection_l.txt', 'a') as f:
+        f.write(f"{gnn}\n")
+        f.write(df.to_csv())
+        f.write(df.mean().to_csv())
+        f.write(df.sem().to_csv())
