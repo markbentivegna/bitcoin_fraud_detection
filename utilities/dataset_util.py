@@ -213,7 +213,7 @@ class DatasetUtilityPyTorch():
         line = f.readline()
 
         # Tiny bit faster than if statements
-        ymap = {'unknown':0, '1':1, '2':2, 'suspicious': 3}
+        ymap = {'unknown':0, '1':1, '2':2}
 
         while(line):
             node,y = line.strip().split(',')
