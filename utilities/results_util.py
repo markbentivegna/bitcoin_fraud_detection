@@ -11,10 +11,10 @@ class ResultsUtility:
 
     def evaluate_performance(self, y_test, y_hat, predictions):
         return {
-            "precision": precision_score(y_test, y_hat, average="micro"),
-            "recall": recall_score(y_test, y_hat, average="micro"),
-            "f1": f1_score(y_test, y_hat, average="micro"),
-            # "roc_auc": roc_auc_score(y_test, predictions),
+            "precision": precision_score(y_test, y_hat),#, average="micro"),
+            "recall": recall_score(y_test, y_hat),#, average="micro"),
+            "f1": f1_score(y_test, y_hat),#, average="micro"),
+            "roc_auc": roc_auc_score(y_test, predictions),
             "confusion_matrix": confusion_matrix(y_test, y_hat)
         }
 
@@ -37,11 +37,11 @@ class ResultsUtility:
             "precision": performance_dict["precision"],
             "recall": performance_dict["recall"],
             "f1": performance_dict["f1"],
-            # "roc_auc": performance_dict["roc_auc"],
-            # "true_negative": int(performance_dict["confusion_matrix"].flatten()[0]),
-            # "false_positive": int(performance_dict["confusion_matrix"].flatten()[1]),
-            # "false_negative": int(performance_dict["confusion_matrix"].flatten()[2]),
-            # "true_positive": int(performance_dict["confusion_matrix"].flatten()[3]),
+            "roc_auc": performance_dict["roc_auc"],
+            "true_negative": int(performance_dict["confusion_matrix"].flatten()[0]),
+            "false_positive": int(performance_dict["confusion_matrix"].flatten()[1]),
+            "false_negative": int(performance_dict["confusion_matrix"].flatten()[2]),
+            "true_positive": int(performance_dict["confusion_matrix"].flatten()[3]),
         }
         if not self.results_file_exists(results_file):
             self.create_results_file(results_dict,results_file)
@@ -50,7 +50,7 @@ class ResultsUtility:
 
     def record_mispredictions(self, y_test, y_hat, model, gnn, classifier, false_positives_file="results/false_positive_nodes.csv", false_negatives_file="results/false_negative_nodes.csv"):
         dataset_util = DatasetUtility()
-        labeled_dataset = dataset_util.get_dataset(constants.ELLIPTIC_DATASET, filter_labeled=True)
+        labeled_dataset = dataset_util.get_dataset(constants.ELLIPTIC_DATASET)[0]
         false_positive_mask = (torch.tensor(y_hat) == 1) & (y_test == 0)
         false_negative_mask = (torch.tensor(y_hat) == 0) & (y_test == 1)
         test_split_index = false_positive_mask.shape[0]
