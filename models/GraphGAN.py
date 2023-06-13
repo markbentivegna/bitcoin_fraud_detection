@@ -55,7 +55,8 @@ class GraphGAN(nn.Module):
             if np.random.rand() < 1:
                 positive_sample = self.graph[int(i)]
                 iter_start = time.time()
-                negative_sample, _ = self.sample(i, self.trees[i], len(positive_sample), for_discriminator=True)
+                if len(self.trees[i][i]) > 1:
+                    negative_sample, _ = self.sample(i, self.trees[i], len(positive_sample), for_discriminator=True)
                 iter_end = time.time()
                 print(f"Iteration {i} took {iter_end - iter_start} seconds to complete")
                 if len(positive_sample) != 0 and negative_sample is not None:
