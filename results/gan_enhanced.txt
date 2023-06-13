@@ -1,0 +1,38 @@
+Default:
+Accuracy:  0.9801439712057588
+Precision:  0.9630541871921182
+Recall:  0.7220683287165282
+F1:  0.8253298153034301
+
+
+G-loss: 1.183, D-loss: 0.952
+Hidden: 512 
+Accuracy:  0.980503899220156
+Precision:  0.969059405940594
+Recall:  0.7229916897506925
+F1:  0.8281332628239025
+
+G-loss: 1.210, D-loss: 0.985
+Hidden: 2048
+Accuracy:  0.980383923215357
+Precision:  0.9678217821782178
+Recall:  0.7220683287165282
+F1:  0.8270756213643574
+
+Above models were trained to gen both illicit and licit nodes
+Below is only trained to generate illicit ones
+
+G-loss: 0.877, D-loss: 0.975
+Hidden: 2048
+Accuracy:  0.980503899220156
+Precision:  0.9702233250620348
+Recall:  0.7220683287165282
+F1:  0.8279512969825306
+
+G-loss: 1.551, D-loss: 0.710
+Hidden: 2048
+Epochs: 10,000
+Accuracy:  0.9806838632273546
+Precision:  0.9762202753441802
+Recall:  0.7202216066481995
+F1:  0.8289054197662061

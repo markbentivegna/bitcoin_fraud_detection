@@ -57,7 +57,7 @@ class Generator(nn.Module):
 
     def sample(self, x, variational=False):
         return self.decode(
-            self.encode(x, variational=variational)
+            self.encode(x[:,:2], variational=variational)
         )
         
     def encode(self, x, variational=False):
@@ -108,3 +108,38 @@ class Discriminator(nn.Module):
     
     def inference(self, x):
         return self.net(x)
+    
+class DiscriminatorClassifier(Discriminator):
+    def __init__(self, in_dim, hidden, layers=3):
+        super().__init__(in_dim, hidden, layers)
+
+        def layer(ind, outd, act=nn.LeakyReLU, kwargs=dict()):
+            return nn.Sequential(
+                nn.Linear(ind, outd),
+                nn.Dropout(),
+                act(**kwargs)
+            )
+
+        self.net = nn.Sequential(
+            layer(in_dim, hidden),
+            *[layer(hidden, hidden) for _ in range(layers-2)], 
+            layer(hidden, 3, act=nn.Softmax, kwargs=dict(dim=-1))
+        )
+
+        self.criterion = nn.CrossEntropyLoss()
+
+    def inference(self, x):
+        return super().inference(x)[:,:-1].argmax(dim=1)
+    
+class GeneratorClassifier(Generator):
+    def __init__(self, in_dim, hidden, latent):
+        super().__init__(in_dim, hidden, latent)
+        
+        self.first = nn.Sequential(
+            nn.Linear(2, hidden*2),
+            nn.ReLU(),
+            nn.Dropout()
+        )
+
+    def forward(self, x):
+        return super().forward(x[:,:2])
