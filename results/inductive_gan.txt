@@ -1,0 +1,32 @@
+HYPERPARAMS = SimpleNamespace(
+    lr=1e-4, epochs=10, bs=512, n_gen=1,
+    hidden=512, latent=64
+)
+
+Embeddings to RF (kfold val)
+Accuracy:  0.9059573919766343
+Precision:  0.6751054852320675
+Recall:  0.0704070407040704
+F1:  0.12751544132297268
+
+HYPERPARAMS = SimpleNamespace(
+    lr=1e-4, epochs=100, bs=512, n_gen=1,
+    hidden=512, latent=64
+)
+Embeddings to RF (kfold val)
+Accuracy:  0.9131732669014689
+Precision:  0.9114754098360656
+Recall:  0.12233223322332233
+F1:  0.2157129000969932
+
+(temporal split)
+Accuracy:  0.9357528494301139
+Precision:  0.6
+Recall:  0.0332409972299169
+F1:  0.06299212598425197
+
+(removed unk)
+Accuracy:  0.9307738452309539
+Precision:  0.44301765650080255
+Recall:  0.2548476454293629
+F1:  0.3235638921453693
