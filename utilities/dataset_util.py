@@ -33,9 +33,9 @@ class DatasetUtility:
             # return self.split_subgraphs(actual_labels_graphs, predicted_labels_graphs, dataset)
         return full_dataset
     
-    def get_dataset(self, dataset):
+    def get_dataset(self, dataset, filter_labeled=True):
         if dataset == constants.ELLIPTIC_DATASET:
-            return self.elliptic_util.get_dataset(filter_labeled=filter_labeled)
+            return self.elliptic_util.get_datasets(filter_labeled=filter_labeled)
         elif dataset == constants.BABD_DATASET:
             return self.babd_util.get_dataset()
         elif dataset == constants.BHD_DATASET:
