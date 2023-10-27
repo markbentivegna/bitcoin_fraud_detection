@@ -41,14 +41,15 @@ class InspectionL(nn.Module):
         return x[perm]
     
     def forward(self, x, edge_index):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         x_real = self.embed(x,edge_index)
         x_corrupted = self.embed(self.corrupt(x), edge_index)
 
         s = self.readout(x_real)
         real_loss = self.discriminate(x_real, s)
-        corrupted_loss = self.discriminate(x_corrupted, s)
+        corrupted_loss = self.discriminate(x_corrupted, s).to(device)
 
-        targets = torch.zeros(real_loss.size(0)+corrupted_loss.size(0), 1)
+        targets = torch.zeros(real_loss.size(0)+corrupted_loss.size(0), 1).to(device)
         targets[:real_loss.size(0)] = 1.
 
         loss = self.bce(torch.cat([real_loss, corrupted_loss]), targets)

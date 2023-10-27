@@ -260,7 +260,7 @@ for gnn in ["GAT", "GIN", "GCN"]:
 =======
         model = InspectionL(actual_labels_graphs[0].x.size(1), constants.HIDDEN_LAYERS, constants.OUTPUT_DIMENSION, gnn=gnn)
         # model = InspectionL(167, constants.HIDDEN_LAYERS, constants.OUTPUT_DIMENSION, gnn=gnn)
-    model_util.train_embedder(predicted_labels_graphs, model, gnn)
+    model_util.train_embedder(predicted_labels_graphs, model, gnn,epochs=3)
     control_group_simulation(gnn, predicted_labels_graphs, RandomForestClassifier(n_estimators=100), gnn)
     rolling_classifier_simulation(gnn, actual_labels_graphs, predicted_labels_graphs, xgb.XGBClassifier(), "XGBoost")
     rolling_classifier_simulation(gnn, actual_labels_graphs, predicted_labels_graphs, RandomForestClassifier(n_estimators=100), "RandomForest")

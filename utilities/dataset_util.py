@@ -7,6 +7,7 @@ from utilities.bhd_util import BHDUtility
 from utilities.creditcard_util import CreditCardUtility
 from utilities.fraud_transaction_util import FraudTransactionUtility
 from utilities.promo_code_util import PromoCodeUtility
+from utilities.ethereum_transaction_util import EthereumTransactionUtility
 from torch_geometric import utils
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -20,6 +21,7 @@ class DatasetUtility:
         self.creditcard_util = CreditCardUtility()
         self.fraud_transaction_util = FraudTransactionUtility()
         self.promo_code_util = PromoCodeUtility()
+        self.ethereum_util = EthereumTransactionUtility()
 
     # def get_u_tuples(self):
     #     return self.graph_util.get_u_graph()
@@ -44,6 +46,17 @@ class DatasetUtility:
             return self.creditcard_util.get_dataset()
         elif dataset == constants.FRAUD_TRANSACTION_DATASET:
             return self.fraud_transaction_util.get_dataset()
+        elif dataset == constants.PROMO_CODE_DATASET:
+            return self.promo_code_util.get_dataset()
+        elif dataset == constants.ETHEREUM_DATASET:
+            return self.ethereum_util.get_dataset()
+        
+    def get_elliptic_graphs(self, dataset):
+        data = self.get_dataset(dataset, filter_labeled=False)
+        if dataset == constants.ELLIPTIC_DATASET:
+            return self.elliptic_util.generate_train_and_test_graphs(data)
+        else:
+            return None
 
     def split_subgraphs(self, data, dataset):
         if dataset == constants.ELLIPTIC_DATASET:
