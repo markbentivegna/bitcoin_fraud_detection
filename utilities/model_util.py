@@ -33,15 +33,17 @@ class ModelUtility:
                 optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             model = model.to(device)
-            graph = full_subgraphs[graph_id]
-            timestamp_target = torch.tensor([(graph.timestamp-1) // 10])
-            timestamp_target = timestamp_target.repeat(graph.x.size(0)).long()
+            # graph = full_subgraphs[graph_id]
+            graph = full_subgraphs
+            # timestamp_target = torch.tensor([(graph.timestamp-1) // 10])
+            # timestamp_target = timestamp_target.repeat(graph.x.size(0)).long()
             labels, timestamp_mask = graph.y, graph.y != 2
             for epoch in range(initial_epoch, epochs):
                 model.train()
                 optimizer.zero_grad()
                 if self.MODEL == "AdaGNN":
-                    loss = model(graph.x, graph.edge_index, timestamp_target, labels, timestamp_mask)
+                    print("foo")
+                    # loss = model(graph.x, graph.edge_index, timestamp_target, labels, timestamp_mask)
                 else:
                     loss = model(graph.x, graph.edge_index)
                 loss.backward()

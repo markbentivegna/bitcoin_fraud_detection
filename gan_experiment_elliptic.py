@@ -6,6 +6,8 @@ import torch
 from torch import nn
 from models.Generator import Generator
 from models.Discriminator import Discriminator
+# from models.AnoGAN.generator import Generator
+# from models.AnoGAN.discriminator import Discriminator
 import numpy as np
 import pandas as pd
 from typing import List
@@ -20,8 +22,10 @@ torch.set_num_threads(16)
 dataset_util = DatasetUtility()
 results_util = ResultsUtility()
 actual_labels_graphs, predicted_labels_graphs = dataset_util.load_dataset(constants.ELLIPTIC_DATASET)
-local_features_matrix = actual_labels_graphs.x.numpy()
-graph_labels = actual_labels_graphs.y.numpy()
+local_features_matrix_actual = actual_labels_graphs.x.numpy()
+graph_labels_actual = actual_labels_graphs.y.numpy()
+local_features_matrix = predicted_labels_graphs.x.numpy()
+graph_labels = predicted_labels_graphs.y.numpy()
 
 training_steps = 500
 batch_size = 1024
@@ -48,6 +52,8 @@ timestamps = np.unique(local_features_matrix[:,TIMESTAMP_INDEX])
 for timestamp in timestamps:
     generator = Generator(input_length)
     discriminator = Discriminator(input_length)
+    # generator = Generator(input_length, 1, 128)
+    # discriminator = Discriminator(128, 128)
 
     generator_optimizer = torch.optim.Adam(generator.parameters(), lr=0.001)
     discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=0.001)
@@ -65,7 +71,7 @@ for timestamp in timestamps:
         random_min = 0
         random_max = 1
         random_noise = np.random.uniform(low=random_min, high=random_max, size=(iter_batch_size, iter_dataset.shape[1])) * torch.rand((iter_batch_size, iter_dataset.shape[1])).numpy()
-        generated_data = generator(torch.tensor(random_noise).float())
+        generated_data = generator(torch.tensor(random_noise).float()[:][:batch_size].unsqueeze(-1))
         true_data, true_labels = balanced_dataset_sampler(iter_dataset, iter_labels, iter_batch_size, filter_illicit=True)
         true_data = torch.tensor(true_data).float()
         true_labels = torch.tensor(true_labels).float().unsqueeze(1)
@@ -115,16 +121,18 @@ for timestamp in timestamps:
     # iter_dataset = np.concatenate((new_illicit_matrix, iter_dataset), axis=0)
     full_generated_dataset = np.concatenate((full_generated_dataset, new_illicit_matrix),axis=0)
 full_actual_dataset = np.insert(actual_labels_graphs.x, UPPER_BOUND + 1, actual_labels_graphs.y, axis=1)
+full_predicted_dataset = np.insert(predicted_labels_graphs.x, UPPER_BOUND + 1, predicted_labels_graphs.y, axis=1)
 full_actual_dataset = np.insert(full_actual_dataset, UPPER_BOUND + 2, 0, axis=1)
-full_dataset = np.concatenate((full_actual_dataset, full_generated_dataset), axis=0)
+full_predicted_dataset = np.insert(full_predicted_dataset, UPPER_BOUND + 2, 0, axis=1)
+full_dataset = np.concatenate((full_predicted_dataset, full_generated_dataset), axis=0)
 X_generated, y_generated = full_dataset[:,:UPPER_BOUND + 1], full_dataset[:,UPPER_BOUND + 1]
 pd.DataFrame(full_dataset).reset_index().drop(columns={0},axis=1).to_csv(f"{constants.GAN_ELLIPTIC_DATASET}")
-X_actual, y_actual = local_features_matrix, graph_labels
+X_actual, y_actual = local_features_matrix_actual, graph_labels_actual
 y_test_full = np.array([])
 pred_full = np.array([])
 pred_threshold_swap = 0.3
 print(f"PROB SWITCH THRESHOLD: {pred_threshold_swap}")
-for timestamp in range(35, int(np.max(timestamps))):
+for timestamp in range(35, int(np.max(timestamps)) + 1):
     print(f"TIMESTAMP: {timestamp}")
     if timestamp >= 44:
         X_train = X_generated[(X_generated[:,TIMESTAMP_INDEX] > 42) & (X_generated[:,TIMESTAMP_INDEX] < timestamp)]
