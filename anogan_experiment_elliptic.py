@@ -7,9 +7,6 @@ from torch.utils.data import DataLoader
 from torch import nn
 from models.AnoGAN.generator import Generator
 from models.AnoGAN.discriminator import Discriminator
-from models.GANomaly.ganomaly import GANomaly
-from models.GANomaly.discriminator_loss import DiscriminatorLoss
-from models.GANomaly.generator_loss import GeneratorLoss
 import numpy as np
 import pandas as pd
 from typing import List
@@ -52,21 +49,19 @@ def balanced_dataset_sampler(dataset, labels,batch_size,filter_illicit=False):
     return sampled_dataset[:,:UPPER_BOUND], sampled_dataset[:,UPPER_BOUND]
 
 timestamps = np.unique(local_features_matrix[:,TIMESTAMP_INDEX])
-input_dimension = (1, local_features_matrix.shape[1] - 1)
-latent_dimension = 128
-input_channels_count = 1
-features_count = local_features_matrix.shape[1] - 1
 
+z_dimension = 128
+gf_dimension = 64
+df_dimension = 64
+c_dimension = 1
 percentiles = [0,10,25,50,75,90,99]
-# device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-w_adversarial = 1
-w_contextual = 50
-w_encoder = 1
-device = "cpu"
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 for timestamp in timestamps:
-    ganomaly = GANomaly(input_dimension, latent_dimension, input_channels_count, features_count).to(device)
-    generator_loss = GeneratorLoss(w_adversarial, w_contextual, w_encoder)
-    discriminator_loss = DiscriminatorLoss()
+    generator = Generator(z_dimension, c_dimension, gf_dimension).to(device)
+    discriminator = Discriminator(c_dimension, df_dimension).to(device)
+
+    generator_optimizer = torch.optim.Adam(generator.parameters(), lr=0.001)
+    discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=0.001)
     criterion = nn.BCELoss()
     generator_losses = []
     discriminator_losses = []
@@ -88,13 +83,47 @@ for timestamp in timestamps:
         epoch_discriminator_real_loss = []
         epoch_discriminator_fake_loss = []
         for i, data in enumerate(train_dataloader):
-            batch, fake, latent_input, latent_output = ganomaly(data[0].to(device))
-            fake = fake.squeeze(1)
-            pred_real, _ = ganomaly.discriminator(batch)
-   
-            pred_fake, _ = ganomaly.discriminator(fake.detach())
-            discrim_loss = discriminator_loss(pred_real, pred_fake)
-        
-            pred_fake, _ = ganomaly.discriminator(fake)
-            gen_loss = generator_loss(latent_input, latent_output, batch, fake, pred_real, pred_fake)
-            print(f"EPOCH: {epoch} DISCRIMINATOR_LOSS: {discrim_loss} GENERATOR_LOSS: {gen_loss}")
+            discriminator.zero_grad()
+
+            real_data = data[0].to(device)
+            real_batch_size = real_data.size(0)
+            label = torch.full((real_batch_size,), REAL_LABEL, dtype=torch.float, device=device)
+            output = discriminator(real_data.unsqueeze(1))[0].view(-1)
+
+            discriminator_real_error = criterion(output, label)
+            discriminator_real_error.backward()
+            
+            discriminator_x = output.mean().item()
+
+            noise = torch.randn(real_batch_size, z_dimension, device=device)
+
+            fake_data = generator(noise)
+            label.fill_(FAKE_LABEL)
+
+            output = discriminator(fake_data.detach())[0].view(-1)
+            discriminator_fake_error = criterion(output, label)
+            discriminator_fake_error.backward()
+            
+            d_gz_1 = output.mean().item()
+            discriminator_error = discriminator_real_error + discriminator_fake_error
+
+            discriminator_optimizer.step()
+
+            generator.zero_grad()
+            label.fill_(REAL_LABEL)
+
+            output = discriminator(fake_data)[0].view(-1)
+
+            generator_error = criterion(output, label)
+            generator_error.backward()
+            g_gz_2 = output.mean().item()
+            generator_optimizer.step()
+
+            epoch_generator_loss.append(generator_error.item())
+            epoch_discriminator_real_loss.append(discriminator_real_error.item())
+            epoch_discriminator_fake_loss.append(discriminator_fake_error.item())
+            epoch_discriminator_loss.append(discriminator_error.item())
+            generator_losses.append(generator_error.item())
+            discriminator_losses.append(discriminator_error.item())
+        # print(f"EPOCH: {epoch} GENERATOR LOSS: {np.mean(epoch_generator_loss)} DISCRIMINATOR LOSS: {np.mean(epoch_discriminator_loss)}")
+        print(f"EPOCH: {epoch} DISCRIMINATOR REAL LOSS: {np.mean(epoch_discriminator_real_loss)} DISCRIMINATOR FAKE LOSS: {np.mean(epoch_discriminator_fake_loss)}")
