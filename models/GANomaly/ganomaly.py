@@ -2,6 +2,8 @@ import torch
 from torch import nn
 from models.GANomaly.generator import Generator
 from models.GANomaly.discriminator import Discriminator
+from models.GANomaly.discriminator_loss import DiscriminatorLoss
+from models.GANomaly.generator_loss import GeneratorLoss
 
 class GANomaly(nn.Module):
     def __init__(self, input_dimension, latent_dimension, input_channels_count, features_count):
@@ -10,6 +12,11 @@ class GANomaly(nn.Module):
         self.discriminator = Discriminator(input_dimension, input_channels_count, features_count)
         self.weights_init(self.generator)
         self.weights_init(self.discriminator)
+        w_adversarial = 1
+        w_contextual = 50
+        w_encoder = 1
+        self.generator_loss = GeneratorLoss(w_adversarial, w_contextual, w_encoder)
+        self.discriminator_loss = DiscriminatorLoss()
         
     def weights_init(self, module):
         class_name = module.__class__.__name__
