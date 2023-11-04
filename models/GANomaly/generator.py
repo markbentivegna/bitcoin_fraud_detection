@@ -14,4 +14,4 @@ class Generator(nn.Module):
         latent_input = self.encoder1(input_tensor.unsqueeze(1))
         reconstructed_x = self.decoder(latent_input)
         latent_output = self.encoder2(reconstructed_x)
-        return reconstructed_x, latent_input, latent_output
+        return input_tensor, reconstructed_x, latent_input, latent_output
