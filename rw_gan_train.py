@@ -52,7 +52,7 @@ def train(hp, gen, disc, graph_ids):
             g_opt.zero_grad()
             
             rw = sample_rw(gid, walk_len=hp.wl, samples=hp.repeat)
-            last_nodes = gen(rw)
+            last_nodes = gen(rw[:,:-1,:])
             gen_rw = torch.cat([rw[:,:-1,:], last_nodes], dim=1)
             
             g_loss = disc(gen_rw, torch.zeros(gen_rw.size(0),1))
@@ -80,10 +80,15 @@ def train(hp, gen, disc, graph_ids):
             print(f'[{e}-{gid}] D-loss: {d_loss.item():0.3f}\tG-loss: {g_loss.item():0.3f}')
 
         if e % 10 == 0:
-            stats.append(eval(gen, hp))
+            s = eval(gen, hp)
+            s['g-loss'] = g_loss.item()
+            s['d-loss'] = d_loss.item()
+            s['epoch'] = e 
+            stats.append(s)
+
             with open('results/rw_gan.csv', 'w+') as f:
                 df = pd.DataFrame(stats)
-                df.to_csv(f)
+                df.to_csv(f, index=False)
 
 @torch.no_grad()
 def eval(gen, hp):
@@ -145,7 +150,7 @@ def main(hp):
     disc = RWDiscriminator(X_DIM, hp.hidden, hp.heads)
     gen = RWGenerator(X_DIM, hp.hidden, hp.heads)
 
-    train(hp, gen, disc, range(35))
+    train(hp, gen, disc, range(34))
 
 
 if __name__ == '__main__':
