@@ -45,16 +45,19 @@ for timestamp in timestamps:
     mask = actual_labels_graphs.ts == timestamp
     iter_features = local_features_matrix[mask]
     iter_labels = graph_labels[mask]
-    iter_features = iter_features[iter_labels == LICIT_LABEL]
-    iter_labels = iter_labels[iter_labels == LICIT_LABEL]
+    licit_iter_features = iter_features[iter_labels == LICIT_LABEL]
+    
+    # This should be in the model somewhere. Makes it difficult to 
+    # Rerun on arbitrary new data
     scaler = MinMaxScaler()
-    scaler.fit(iter_features)
+    scaler.fit(licit_iter_features)
+    licit_iter_features = scaler.transform(licit_iter_features)
     iter_features = scaler.transform(iter_features)
 
     # Then we convert the numpy matrix back to a torch matrix?
     iter_dataset = []
-    for i in range(len(iter_features)):
-        iter_dataset.append([iter_features[i], iter_labels[i]])
+    for i in range(len(licit_iter_features)):
+        iter_dataset.append([licit_iter_features[i], LICIT_LABEL])
 
     train_dataloader = DataLoader(dataset=iter_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
     print(f"TIMESTAMP: {timestamp}")
