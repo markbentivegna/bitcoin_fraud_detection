@@ -10,7 +10,7 @@ class Decoder(nn.Module):
         # self.conv_layer1 = nn.ConvTranspose1d(latent_dimension, features_count, kernel_size=4, stride=1, bias=False)
         self.conv_layer1 = nn.Linear(latent_dimension, features_count, bias=False)
         # self.batch_layer1 = nn.BatchNorm1d(features_count)
-        self.batch_layer1 = nn.BatchNorm1d(input_channels_count)
+        self.batch_layer1 = nn.BatchNorm1d(features_count)
         self.relu1 = nn.ReLU(True)
 
         self.inverse_pyramid_features = nn.Sequential()
@@ -23,7 +23,7 @@ class Decoder(nn.Module):
             # self.pyramid_features.add_module(f"pyramid-{output_features}-conv", nn.ConvTranspose1d(input_features, output_features, kernel_size=4, stride=1, bias=False))
             self.inverse_pyramid_features.add_module(f"pyramid-{output_features}-linear", nn.Linear(input_features, output_features, bias=False))
             # self.pyramid_features.add_module(f"pyramid-{output_features}-batch_norm", nn.BatchNorm1d(output_features))
-            self.inverse_pyramid_features.add_module(f"pyramid-{output_features}-batch_norm", nn.BatchNorm1d(input_channels_count))
+            self.inverse_pyramid_features.add_module(f"pyramid-{output_features}-batch_norm", nn.BatchNorm1d(output_features))
             self.inverse_pyramid_features.add_module(f"pyramid-{output_features}-relu", nn.ReLU(inplace=True))
             features_count = output_features
             # pyramid_dimension = pyramid_dimension // 2

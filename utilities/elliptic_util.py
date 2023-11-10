@@ -11,6 +11,7 @@ from resources import constants
 
 
 class EllipticUtility:
+    DONT_TRAIN_COLS = ['transaction_id', 'timestamp', 'class']
     def __init__(self):
         self._initialize_dataframes()
 
@@ -30,18 +31,34 @@ class EllipticUtility:
             "txId": "transaction_id"
         }, inplace=True)
     
+    def preprocess(self, df):
+        # Slice out transaction_id, timestamp, and class
+        train_cols = [c for c in df.columns if c not in self.DONT_TRAIN_COLS]
+        return df[train_cols].to_numpy()
+        
     def train_classifier(self, dataset_df, classifier):
         train_df = dataset_df[dataset_df["class"] != 2]
-        x_train, y_train = train_df.drop("class",axis=1).to_numpy(), train_df["class"].to_numpy()
+        x_train = self.preprocess(train_df)
+        y_train = train_df["class"].to_numpy()
+
         classifier.fit(x_train, y_train)
         return classifier
 
     def attempt_labeling(self, filename, classifier):
         dataset_df = self._init_dataset_df(filter_labeled=False)
         classifier = self.train_classifier(dataset_df, classifier)
+        
+        # Slight optimization
+        unlabeled = dataset_df[dataset_df['class'] == 2]
+        idx = unlabeled.index 
+        pred_labels = classifier.predict(self.preprocess(unlabeled))
+        dataset_df.loc[idx, 'class'] = pred_labels
+        '''
         for index, row in dataset_df.iterrows():
             if row["class"] == 2:
                 dataset_df.loc[index, "class"] = classifier.predict([row.drop("class")])[0]
+        '''
+
         dataset_df.to_csv(f"{filename}")
         return dataset_df
     
@@ -65,19 +82,25 @@ class EllipticUtility:
     def get_dataset_graph(self, dataset_df,filter_labeled=True):
         # edges_filename = constants.EDGES_LABELED_FILENAME if filter_labeled else constants.EDGES_INDEXED_FILENAME
         edges_df = self.get_edge_list(dataset_df, generate_csv=False, is_labeled=filter_labeled)
-        
+
         train_mask_tensor, val_mask_tensor, test_mask_tensor = self._get_mask_tensors(dataset_df)
-        edges_tensor = self._to_tensor(edges_df.to_numpy())
+        edges_tensor = torch.from_numpy(edges_df.to_numpy())
+        x_tensor = torch.from_numpy(self.preprocess(dataset_df))
+        ts = torch.from_numpy(dataset_df['timestamp'].to_numpy())
+
+        '''
         if filter_labeled:
             x_tensor = self._to_tensor(dataset_df.reset_index().reset_index().drop("index",axis=1).drop("class",axis=1).to_numpy())
         else:
             x_tensor = self._to_tensor(dataset_df.reset_index().drop("class",axis=1).to_numpy())
-        y_tensor = self._to_tensor(dataset_df["class"].to_numpy().astype(int))
+        '''
+
+        y_tensor = torch.from_numpy(dataset_df["class"].to_numpy().astype(int))
 
         return Data(
             x=x_tensor, edge_index=edges_tensor, y=y_tensor,
             num_nodes=x_tensor.size(0), train_mask=train_mask_tensor,
-            val_mask=val_mask_tensor, test_mask=test_mask_tensor
+            val_mask=val_mask_tensor, test_mask=test_mask_tensor, ts=ts
         )
 
     def _init_dataset_df(self, filter_labeled=True):
