@@ -17,7 +17,7 @@ class Discriminator(nn.Module):
         self.classifier.add_module('sigmoid', nn.Sigmoid())
 
     def forward(self, input_tensor):
-        features = self.features(input_tensor.unsqueeze(1))
+        features = self.features(input_tensor)
         classifier = self.classifier(features)
-        classifier = classifier.view(-1, 1).squeeze(1)
+        classifier = classifier.squeeze(1)
         return classifier, features

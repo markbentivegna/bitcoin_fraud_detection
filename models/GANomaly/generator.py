@@ -11,7 +11,7 @@ class Generator(nn.Module):
         self.encoder2 = Encoder(input_dimension, latent_dimension, input_channel_count, features_count)
 
     def forward(self, input_tensor):
-        latent_input = self.encoder1(input_tensor.unsqueeze(1))
+        latent_input = self.encoder1(input_tensor)
         reconstructed_x = self.decoder(latent_input)
         latent_output = self.encoder2(reconstructed_x)
         return input_tensor, reconstructed_x, latent_input, latent_output
