@@ -3,7 +3,7 @@ from sklearn.preprocessing import MinMaxScaler
 from resources import constants
 import torch
 import os
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torch import nn
 from models.GANomaly.generator_loss import GeneratorLoss
 from models.GANomaly.discriminator_loss import DiscriminatorLoss
@@ -51,12 +51,9 @@ for timestamp in timestamps:
     scaler.fit(iter_features)
     iter_features = scaler.transform(iter_features)
 
-    # Then we convert the numpy matrix back to a torch matrix?
-    iter_dataset = []
-    for i in range(len(iter_features)):
-        iter_dataset.append([iter_features[i], iter_labels[i]])
-
+    iter_dataset = TensorDataset(iter_features, iter_labels)
     train_dataloader = DataLoader(dataset=iter_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+
     print(f"TIMESTAMP: {timestamp}")
     model_filename = f"saved_models/GANomaly_generator_{timestamp}_{training_steps}.pt"
     if os.path.isfile(model_filename):
@@ -66,27 +63,20 @@ for timestamp in timestamps:
         for epoch in range(training_steps):
             for i, (x,y) in enumerate(train_dataloader):
                 x = x.float()
+
+                # Train Generator
                 generator_optimizer.zero_grad()
                 batch, fake, latent_input, latent_output = generator(x.to(device))
-
-                # This is why it's not learning. You're detatching the tensors so 
-                # how much it fools the discriminator isn't backpropping to the generator
-                #pred_fake, _ = discriminator(fake.detach())
-                #pred_real, _ = discriminator(batch.detach())
-                #gen_loss = generator_loss(latent_input, latent_output, batch, fake, pred_real.detach(), pred_fake.detach())
-                
                 pred_fake, _ = discriminator(fake)
                 pred_real, _ = discriminator(batch)
                 gen_loss = generator_loss(latent_input, latent_output, batch, fake, pred_real, pred_fake)
                 gen_loss.backward()
                 generator_optimizer.step()
                 
-                # This is also why it's not learning. Need to zero disc's grad 
-                # because it has loss from the generator accumulated from the last 
-                # call to .backward() 
+                # Train Discriminator 
                 discriminator_optimizer.zero_grad()
-                pred_fake, _ = discriminator(fake.detach())
-                # Have to call again. Autograd gets angry if you call backward on the same grad twice
+                _, fake, _,_ = generator(x.to(device))
+                pred_fake, _ = discriminator(fake)
                 pred_real, _ = discriminator(batch) 
                 discrim_loss = discriminator_loss(pred_real, pred_fake)
                 discrim_loss.backward()
@@ -95,11 +85,15 @@ for timestamp in timestamps:
             if epoch % 25 == 0 or epoch == training_steps - 1:
                 torch.save(generator.state_dict(), f"saved_models/GANomaly_generator_{timestamp}_{epoch + 1}.pt")
                 torch.save(discriminator.state_dict(), f"saved_models/GANomaly_discriminator_{timestamp}_{epoch}.pt")
+            
             print(f"EPOCH: {epoch} DISCRIMINATOR_LOSS: {discrim_loss.item()} GENERATOR_LOSS: {gen_loss.item()}")
     
     # These are the same as above the training loop (?)
-    #iter_features = local_features_matrix[local_features_matrix[:,TIMESTAMP_INDEX] == timestamp][:,1:] 
-    #iter_labels = graph_labels[local_features_matrix[:,TIMESTAMP_INDEX] == timestamp]
+    iter_features = local_features_matrix[mask] 
+    iter_labels = graph_labels[mask]
+
+    # Need to scale features as well: 
+    iter_features = scaler.transform(iter_features)
 
     anomaly_score = nn.SmoothL1Loss()
     _, _, licit_latent_input, licit_latent_output = generator(torch.Tensor(iter_features[iter_labels == LICIT_LABEL]).to(device))
