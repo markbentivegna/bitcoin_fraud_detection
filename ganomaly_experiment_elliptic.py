@@ -11,8 +11,6 @@ from models.GANomaly.generator import Generator
 from models.GANomaly.discriminator import Discriminator
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, confusion_matrix, accuracy_score
 
-ILLICIT_LABEL = 1
-LICIT_LABEL = 0
 TRAINING_SPLIT_INDEX = 35
 torch.set_num_threads(16)
 dataset_util = DatasetUtility()
@@ -82,24 +80,23 @@ for timestamp in range(TRAINING_SPLIT_INDEX, max(timestamps)):
     generator.eval()
     
     print(f"TIMESTAMP: {timestamp}")
-    mask = actual_labels_graphs.ts == timestamp
-    iter_features = actual_labels_graphs.x[mask] 
-    iter_labels = actual_labels_graphs.y[mask]
-    iter_features = scaler.transform(iter_features)
+    testing_mask = actual_labels_graphs.ts == timestamp
+    licit_mask = (actual_labels_graphs.ts == timestamp) & (actual_labels_graphs.y == 0)
+    illicit_mask = (actual_labels_graphs.ts == timestamp) & (actual_labels_graphs.y == 1)
 
     anomaly_score = nn.SmoothL1Loss()
-    _, _, licit_latent_input, licit_latent_output = generator(torch.Tensor.float(torch.from_numpy(iter_features[iter_labels == LICIT_LABEL])).to(device))
+    _, _, licit_latent_input, licit_latent_output = generator(torch.Tensor.float(torch.from_numpy(scaler.transform(actual_labels_graphs.x[licit_mask]))).to(device))
     licit_anamoly_score = anomaly_score(licit_latent_input, licit_latent_output)
 
-    _, _, illicit_latent_input, illicit_latent_output = generator(torch.Tensor.float(torch.from_numpy(iter_features[iter_labels == ILLICIT_LABEL])).to(device))
+    _, _, illicit_latent_input, illicit_latent_output = generator(torch.Tensor.float(torch.from_numpy(scaler.transform(actual_labels_graphs.x[illicit_mask]))).to(device))
     illicit_anamoly_score = anomaly_score(illicit_latent_input, illicit_latent_output)
 
     anomaly_scores = []
-    for feature in iter_features:
+    for feature in scaler.transform(actual_labels_graphs.x[testing_mask]):
         _, _, latent_input, latent_output = generator(torch.Tensor.float(torch.from_numpy(feature).unsqueeze(0)).to(device))
         anomaly_scores.append(anomaly_score(latent_input, latent_output).item())
-    roc_score = roc_auc_score(iter_labels, anomaly_scores)
-    average_precision = average_precision_score(iter_labels, anomaly_scores)
+    roc_score = roc_auc_score(actual_labels_graphs.y[testing_mask], anomaly_scores)
+    average_precision = average_precision_score(actual_labels_graphs.y[testing_mask], anomaly_scores)
     print(f"ROC SCORE: {roc_score}")
     print(f"AVERAGE PRECISION SCORE: {average_precision}")
     print(f"LICIT ANAMOLY SCORE: {licit_anamoly_score}")
