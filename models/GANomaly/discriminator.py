@@ -4,7 +4,7 @@ from models.GANomaly.encoder import Encoder
 class Discriminator(nn.Module):
     def __init__(self, input_dimension, input_channels_count, features_count):
         super().__init__()
-        encoder = Encoder(input_dimension, 1, input_channels_count, features_count)
+        encoder = Encoder(input_dimension, 1, features_count)
         layers = []
         for block in encoder.children():
             if isinstance(block, nn.Sequential):
