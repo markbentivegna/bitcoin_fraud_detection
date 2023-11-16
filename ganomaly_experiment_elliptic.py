@@ -32,15 +32,16 @@ discriminator_loss = DiscriminatorLoss()
 generator_optimizer = torch.optim.Adam(generator.parameters(), lr=0.001)
 discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=0.001)
 
+scaler = MinMaxScaler()
+scaler.fit(actual_labels_graphs.x)
+scaled_features = scaler.transform(actual_labels_graphs.x)
+
 timestamps = actual_labels_graphs.ts.unique().numpy().astype(int)
 for timestamp in range(TRAINING_SPLIT_INDEX, max(timestamps)):
     training_mask = (actual_labels_graphs.ts < timestamp) & (actual_labels_graphs.y == 0)
 
-    iter_features = actual_labels_graphs.x[training_mask]
+    iter_features = scaled_features[training_mask]
     iter_labels = actual_labels_graphs.y[training_mask]
-    scaler = MinMaxScaler()
-    scaler.fit(iter_features)
-    iter_features = scaler.transform(iter_features)
     iter_dataset = []
     for i in range(len(iter_features)):
         iter_dataset.append([iter_features[i], iter_labels[i]])
@@ -71,13 +72,13 @@ for timestamp in range(TRAINING_SPLIT_INDEX, max(timestamps)):
                 discrim_loss = discriminator_loss(pred_real, pred_fake)
                 discrim_loss.backward()
                 discriminator_optimizer.step()
-                print(f"EPOCH: {epoch} DISCRIMINATOR_LOSS: {discrim_loss.item()} GENERATOR_LOSS: {gen_loss.item()}")
+                # print(f"EPOCH: {epoch} DISCRIMINATOR_LOSS: {discrim_loss.item()} GENERATOR_LOSS: {gen_loss.item()}")
 
             if epoch % 25 == 0 or epoch == training_steps - 1:
                 torch.save(generator.state_dict(), f"saved_models/GANomaly_generator_{timestamp}_{epoch + 1}.pt")
                 torch.save(discriminator.state_dict(), f"saved_models/GANomaly_discriminator_{timestamp}_{epoch + 1}.pt")
 
-    generator.eval()
+    # generator.eval()
     
     print(f"TIMESTAMP: {timestamp}")
     testing_mask = actual_labels_graphs.ts == timestamp
@@ -85,19 +86,19 @@ for timestamp in range(TRAINING_SPLIT_INDEX, max(timestamps)):
     illicit_mask = (actual_labels_graphs.ts == timestamp) & (actual_labels_graphs.y == 1)
 
     anomaly_score = nn.SmoothL1Loss()
-    _, _, licit_latent_input, licit_latent_output = generator(torch.Tensor.float(torch.from_numpy(scaler.transform(actual_labels_graphs.x[licit_mask]))).to(device))
+    _, _, licit_latent_input, licit_latent_output = generator(torch.Tensor.float(torch.from_numpy(scaled_features[licit_mask])).to(device))
     licit_anamoly_score = anomaly_score(licit_latent_input, licit_latent_output)
 
-    _, _, illicit_latent_input, illicit_latent_output = generator(torch.Tensor.float(torch.from_numpy(scaler.transform(actual_labels_graphs.x[illicit_mask]))).to(device))
+    _, _, illicit_latent_input, illicit_latent_output = generator(torch.Tensor.float(torch.from_numpy(scaled_features[illicit_mask])).to(device))
     illicit_anamoly_score = anomaly_score(illicit_latent_input, illicit_latent_output)
 
-    anomaly_scores = []
-    for feature in scaler.transform(actual_labels_graphs.x[testing_mask]):
-        _, _, latent_input, latent_output = generator(torch.Tensor.float(torch.from_numpy(feature).unsqueeze(0)).to(device))
-        anomaly_scores.append(anomaly_score(latent_input, latent_output).item())
-    roc_score = roc_auc_score(actual_labels_graphs.y[testing_mask], anomaly_scores)
-    average_precision = average_precision_score(actual_labels_graphs.y[testing_mask], anomaly_scores)
-    print(f"ROC SCORE: {roc_score}")
-    print(f"AVERAGE PRECISION SCORE: {average_precision}")
+    # anomaly_scores = []
+    # for feature in scaled_features[testing_mask]:
+    #     _, _, latent_input, latent_output = generator(torch.Tensor.float(torch.from_numpy(feature).unsqueeze(0)).to(device))
+    #     anomaly_scores.append(anomaly_score(latent_input, latent_output).item())
+    # roc_score = roc_auc_score(actual_labels_graphs.y[testing_mask], anomaly_scores)
+    # average_precision = average_precision_score(actual_labels_graphs.y[testing_mask], anomaly_scores)
+    # print(f"ROC SCORE: {roc_score}")
+    # print(f"AVERAGE PRECISION SCORE: {average_precision}")
     print(f"LICIT ANAMOLY SCORE: {licit_anamoly_score}")
     print(f"ILLICIT ANAMOLY SCORE: {illicit_anamoly_score}")
