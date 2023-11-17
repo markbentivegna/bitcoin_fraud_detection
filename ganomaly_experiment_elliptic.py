@@ -104,15 +104,15 @@ for timestamp in timestamps:
     
     # Load in next timestamp 
     new_mask = actual_labels_graphs.ts == timestamp + 1 
-    iter_features = local_features_matrix[new_mask] 
+    iter_features = local_features_matrix[new_mask].float()
     iter_labels = graph_labels[new_mask]
 
     anomaly_score = SmoothL1LossUncompressed()
     with torch.no_grad():
-        _, _, licit_latent_input, licit_latent_output = generator(torch.Tensor(iter_features[iter_labels == LICIT_LABEL]).float().to(device))
+        _, _, licit_latent_input, licit_latent_output = generator(iter_features[iter_labels == LICIT_LABEL].to(device))
         licit_anamoly_score = anomaly_score(licit_latent_input, licit_latent_output)
 
-        _, _, illicit_latent_input, illicit_latent_output = generator(torch.Tensor(iter_features[iter_labels == ILLICIT_LABEL]).float().to(device))
+        _, _, illicit_latent_input, illicit_latent_output = generator(iter_features[iter_labels == ILLICIT_LABEL].to(device))
         illicit_anamoly_score = anomaly_score(illicit_latent_input, illicit_latent_output)
 
     scores = torch.cat([licit_anamoly_score, illicit_anamoly_score])
