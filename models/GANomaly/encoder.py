@@ -1,15 +1,15 @@
 from torch import nn
 
 class Encoder(nn.Module):
-    def __init__(self, input_dimension, latent_dimension, features_count, layers=5):
+    def __init__(self, input_dimension, latent_dimension, features_count, layers=1):
         super().__init__()
 
-        self.input = nn.Linear(features_count, features_count, bias=False)
+        self.input = nn.Linear(features_count, features_count)
 
         def layer_block(in_d, out_d):
             return nn.Sequential(
                 nn.Linear(in_d, out_d), 
-                nn.BatchNorm1d(out_d), 
+                nn.LayerNorm(out_d), 
                 nn.LeakyReLU(0.2, inplace=True)
             )
         
@@ -22,7 +22,7 @@ class Encoder(nn.Module):
             self.pyramid_features.add_module(f'layer-{i}', layer_block(in_f, out_f))
             feats = out_f 
 
-        self.final = nn.Linear(feats, latent_dimension, bias=False)
+        self.final = nn.Linear(feats, latent_dimension)
 
     def forward(self, x): 
         x = self.input(x) 

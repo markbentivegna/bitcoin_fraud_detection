@@ -23,9 +23,9 @@ class ResultsUtility:
 
     def create_results_file(self, results_dict, reuslts_filename, flat=True):
         if flat:
-            pd.DataFrame([results_dict]).to_csv(f"{reuslts_filename}", header=list(results_dict.keys()))
+            pd.DataFrame([results_dict]).to_csv(f"{reuslts_filename}", index=False, header=list(results_dict.keys()))
         else:
-            pd.DataFrame(results_dict).to_csv(f"{reuslts_filename}", header=list(results_dict.keys()))
+            pd.DataFrame(results_dict).to_csv(f"{reuslts_filename}", index=False, header=list(results_dict.keys()))
 
     def record_results(self, model, gnn, classifier, hidden_layers, output_layers, performance_dict, results_file="results/results.csv"):
         results_dict = {
