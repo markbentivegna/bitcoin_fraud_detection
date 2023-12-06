@@ -44,7 +44,7 @@ roc_scores = []
 results_filename = f"results/GANamolyUNLABELED.csv"
 timestamps = actual_labels_graphs.ts.unique().numpy().astype(int)
 # for timestamp in timestamps:
-for timestamp in range(6,np.max(timestamps)):
+for timestamp in timestamps:
     for layers in range(1,6):
         generator_filename = f"saved_models/GANomaly_generator_{timestamp}_{training_steps}_{layers}_UNLABELED1.pt"
         discriminator_filename = f"saved_models/GANomaly_discriminator_{timestamp}_{training_steps}_{layers}_UNLABELED1.pt"
